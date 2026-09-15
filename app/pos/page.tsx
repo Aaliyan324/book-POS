@@ -14,7 +14,7 @@ export default async function POSPage() {
   settings.forEach((s) => (companySettings[s.key] = s.value));
 
   return (
-    <MainLayout user={user} title="Point of Sale Console">
+    <MainLayout user={user} title="Point of Sale Console" fullWidth>
       <POSInterface initialCategories={categories} companySettings={companySettings} />
     </MainLayout>
   );
