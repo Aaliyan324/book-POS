@@ -1,0 +1,234 @@
+// Prisma Schema for Book POS System (SQLite local / PostgreSQL production)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String          @id @default(cuid())
+  employeeId    String          @unique
+  name          String
+  email         String          @unique
+  passwordHash  String
+  role          String          @default("EMPLOYEE") // ADMIN | MANAGER | EMPLOYEE
+  status        String          @default("ACTIVE")   // ACTIVE | INACTIVE
+  phone         String?
+  joiningDate   DateTime        @default(now())
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  sessions      Session[]
+  sales         Sale[]
+  payments      Payment[]
+  inventoryLogs InventoryLedger[]
+  auditLogs     AuditLog[]
+  expenses      Expense[]
+  returns       Return[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  books       Book[]
+  createdAt   DateTime @default(now())
+}
+
+model Book {
+  id                String            @id @default(cuid())
+  bookId            String            @unique
+  isbn              String?           @unique
+  title             String
+  author            String
+  publisher         String
+  categoryId        String
+  category          Category          @relation(fields: [categoryId], references: [id])
+  subject           String?
+  classGrade        String?
+  description       String?
+  coverImage        String?
+  purchasePrice     Float
+  sellingPrice      Float
+  discount          Float             @default(0)
+  stockQuantity     Int               @default(0)
+  minStockThreshold Int               @default(5)
+  barcode           String?           @unique
+  status            String            @default("ACTIVE") // ACTIVE | INACTIVE | OUT_OF_STOCK
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  saleItems         SaleItem[]
+  inventoryLogs     InventoryLedger[]
+  returnItems       ReturnItem[]
+}
+
+model InventoryLedger {
+  id            String   @id @default(cuid())
+  bookId        String
+  book          Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  type          String   // PURCHASE | SALE | RETURN | DAMAGE | ADJUSTMENT | RESTOCK
+  quantity      Int
+  previousStock Int
+  newStock      Int
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id])
+  reason        String?
+  createdAt     DateTime @default(now())
+}
+
+model Customer {
+  id                 String    @id @default(cuid())
+  customerId         String    @unique
+  name               String
+  phone              String?
+  email              String?
+  address            String?
+  notes              String?
+  totalPurchases     Float     @default(0)
+  totalPaid          Float     @default(0)
+  outstandingBalance Float     @default(0)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  sales              Sale[]
+  payments           Payment[]
+  returns            Return[]
+}
+
+model Sale {
+  id              String     @id @default(cuid())
+  invoiceNumber   String     @unique
+  customerId      String?
+  customer        Customer?  @relation(fields: [customerId], references: [id])
+  userId          String
+  user            User       @relation(fields: [userId], references: [id])
+  subtotal        Float
+  discount        Float      @default(0)
+  tax             Float      @default(0)
+  grandTotal      Float
+  paidAmount      Float
+  remainingAmount Float
+  paymentStatus   String     // PAID | PARTIALLY_PAID | UNPAID
+  status          String     @default("COMPLETED") // COMPLETED | RETURNED | CANCELLED
+  notes           String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  items           SaleItem[]
+  payments        Payment[]
+  returns         Return[]
+}
+
+model SaleItem {
+  id        String @id @default(cuid())
+  saleId    String
+  sale      Sale   @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  bookId    String
+  book      Book   @relation(fields: [bookId], references: [id])
+  quantity  Int
+  unitPrice Float
+  discount  Float  @default(0)
+  subtotal  Float
+}
+
+model Payment {
+  id               String    @id @default(cuid())
+  transactionId    String    @unique
+  saleId           String?
+  sale             Sale?     @relation(fields: [saleId], references: [id])
+  customerId       String?
+  customer         Customer? @relation(fields: [customerId], references: [id])
+  userId           String
+  user             User      @relation(fields: [userId], references: [id])
+  method           String    // CASH | BANK_TRANSFER | JAZZCASH | EASYPAISA | CARD | OTHER
+  amount           Float
+  previousBalance  Float     @default(0)
+  remainingBalance Float     @default(0)
+  notes            String?
+  status           String    @default("SUCCESS")
+  createdAt        DateTime  @default(now())
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  title       String
+  category    String   // RENT | ELECTRICITY | TRANSPORT | SALARIES | PACKAGING | PRINTING | OTHER
+  amount      Float
+  method      String   // CASH | BANK_TRANSFER | JAZZCASH | EASYPAISA | CARD | OTHER
+  description String?
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+}
+
+model Return {
+  id                String    @id @default(cuid())
+  returnNumber      String    @unique
+  saleId            String
+  sale              Sale      @relation(fields: [saleId], references: [id])
+  userId            String
+  user              User      @relation(fields: [userId], references: [id])
+  customerId        String?
+  customer          Customer? @relation(fields: [customerId], references: [id])
+  totalRefundAmount Float
+  refundType        String    // REFUND_CASH | STORE_CREDIT | OUTSTANDING_ADJUSTMENT
+  reason            String?
+  createdAt         DateTime  @default(now())
+
+  items             ReturnItem[]
+}
+
+model ReturnItem {
+  id             String @id @default(cuid())
+  returnId       String
+  return         Return @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  saleId         String
+  bookId         String
+  book           Book   @relation(fields: [bookId], references: [id])
+  quantity       Int
+  unitPrice      Float
+  refundSubtotal Float
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  title     String
+  message   String
+  type      String   // LOW_STOCK | UNPAID_PAYMENT | SYSTEM | SALE
+  isRead    Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  action      String
+  entity      String
+  entityId    String?
+  description String
+  metadata    String?
+  createdAt   DateTime @default(now())
+}
+
+model Setting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+}
