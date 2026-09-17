@@ -217,8 +217,24 @@ export function SalesTable({ initialSales, employees, companySettings }: SalesTa
                 </tr>
               ) : (
                 filteredSales.map((sale) => (
-                  <tr key={sale.id} className="hover:bg-stone-50/60 transition-colors">
-                    <td className="py-3.5 px-4 font-mono font-bold text-stone-900">
+                  <tr
+                    key={sale.id}
+                    tabIndex={0}
+                    onClick={() => {
+                      setSelectedSale(sale);
+                      setIsReceiptOpen(true);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setSelectedSale(sale);
+                        setIsReceiptOpen(true);
+                      }
+                    }}
+                    className="hover:bg-orange-50/50 cursor-pointer transition-colors focus:outline-none focus:bg-orange-50/80 group"
+                    title="Click row to view complete sale & payment details"
+                  >
+                    <td className="py-3.5 px-4 font-mono font-bold text-stone-900 group-hover:text-orange-600 transition-colors">
                       {sale.invoiceNumber}
                     </td>
                     <td className="py-3.5 px-4 text-stone-500">
@@ -257,11 +273,12 @@ export function SalesTable({ initialSales, employees, companySettings }: SalesTa
                         )}
                       </div>
                     </td>
-                    <td className="py-3.5 px-4 text-center">
+                    <td className="py-3.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-center gap-1.5">
                         {/* View / Print Invoice */}
                         <button
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setSelectedSale(sale);
                             setIsReceiptOpen(true);
                           }}
@@ -274,7 +291,8 @@ export function SalesTable({ initialSales, employees, companySettings }: SalesTa
                         {/* Record Subsequent Payment */}
                         {sale.remainingAmount > 0 && (
                           <button
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setPaymentModalSale(sale);
                               setPayAmount(sale.remainingAmount.toString());
                             }}
@@ -288,7 +306,8 @@ export function SalesTable({ initialSales, employees, companySettings }: SalesTa
                         {/* Return Items */}
                         {sale.status !== 'RETURNED' && (
                           <button
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setReturnModalSale(sale);
                               const initQty: Record<string, number> = {};
                               sale.items?.forEach((i: any) => (initQty[i.bookId] = 0));

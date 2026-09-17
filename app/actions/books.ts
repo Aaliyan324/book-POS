@@ -269,3 +269,56 @@ export async function deleteBookAction(id: string) {
     return { success: false, error: err.message || 'Failed to delete book.' };
   }
 }
+
+export async function createCategoryAction(rawName: string) {
+  const user = await getSession();
+  if (!user || (user.role !== 'ADMIN' && user.role !== 'MANAGER')) {
+    return { success: false, error: 'Unauthorized to add categories.' };
+  }
+
+  const name = rawName.trim();
+  if (!name) {
+    return { success: false, error: 'Category name cannot be empty.' };
+  }
+
+  let slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  if (!slug) slug = `category-${Date.now()}`;
+
+  try {
+    const existing = await prisma.category.findFirst({
+      where: {
+        OR: [
+          { name: { equals: name, mode: 'insensitive' } },
+          { slug: { equals: slug } },
+        ],
+      },
+    });
+
+    if (existing) {
+      return { success: true, category: existing, message: 'Existing category selected.' };
+    }
+
+    const category = await prisma.category.create({
+      data: {
+        name,
+        slug,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: 'CREATE_CATEGORY',
+        entity: 'Category',
+        entityId: category.id,
+        description: `Created category "${category.name}".`,
+      },
+    });
+
+    revalidatePath('/books');
+    revalidatePath('/pos');
+    return { success: true, category };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Failed to create category.' };
+  }
+}

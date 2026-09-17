@@ -157,6 +157,7 @@ export async function completeSaleAction(data: {
           items: {
             create: data.cartItems.map((item) => ({
               bookId: item.bookId,
+              bookTitle: item.title,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
               discount: item.discount,

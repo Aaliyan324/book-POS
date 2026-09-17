@@ -41,7 +41,6 @@ export async function createSession(userId: string): Promise<string> {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    expires: expiresAt,
     path: '/',
   });
 

@@ -219,6 +219,7 @@ export function POSInterface({ initialCategories, companySettings }: POSInterfac
 
   // Submit Sale Handler
   const handleCompleteSale = async () => {
+    if (isSubmitting) return;
     if (cart.length === 0) {
       setErrorMessage('Cart is empty. Select books to sell.');
       return;
@@ -573,7 +574,7 @@ export function POSInterface({ initialCategories, companySettings }: POSInterfac
       </div>
 
       {/* RIGHT DESKTOP CART PANEL (hidden on mobile/tablet, visible on lg screens) */}
-      <div className="hidden lg:flex w-[380px] xl:w-[420px] bg-white rounded-2xl border border-stone-200/90 shadow-md flex-col shrink-0 sticky top-20 max-h-[calc(100vh-100px)] overflow-hidden">
+      <div className="hidden lg:flex w-[380px] xl:w-[420px] bg-white rounded-2xl border border-stone-200/90 shadow-md flex-col shrink-0 sticky top-20 h-[calc(100vh-100px)] overflow-hidden">
         <CartContent
           cart={cart}
           totalItemCount={totalItemCount}

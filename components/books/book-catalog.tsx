@@ -5,7 +5,7 @@ import { Plus, Search, Filter, Edit, Trash2, BookOpen, AlertTriangle, ArrowUpDow
 import { formatPKR } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
-import { createBookAction, updateBookAction, adjustStockAction, deleteBookAction } from '@/app/actions/books';
+import { createBookAction, updateBookAction, adjustStockAction, deleteBookAction, createCategoryAction } from '@/app/actions/books';
 
 interface BookCatalogProps {
   initialBooks: any[];
@@ -15,9 +15,16 @@ interface BookCatalogProps {
 
 export function BookCatalog({ initialBooks, categories, userRole }: BookCatalogProps) {
   const [books, setBooks] = useState(initialBooks);
+  const [categoriesList, setCategoriesList] = useState(categories);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [stockFilter, setStockFilter] = useState<'all' | 'low_stock' | 'out_of_stock'>('all');
+
+  // Custom Category State
+  const [isAddingCustomCategory, setIsAddingCustomCategory] = useState(false);
+  const [customCategoryInput, setCustomCategoryInput] = useState('');
+  const [customCategoryError, setCustomCategoryError] = useState('');
+  const [isSavingCategory, setIsSavingCategory] = useState(false);
 
   // Create / Edit Modal State
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
@@ -132,14 +139,45 @@ export function BookCatalog({ initialBooks, categories, userRole }: BookCatalogP
     }
   };
 
+  // Save Custom Category Handler
+  const handleSaveCustomCategory = async () => {
+    if (!customCategoryInput.trim()) {
+      setCustomCategoryError('Category name cannot be empty.');
+      return;
+    }
+    setIsSavingCategory(true);
+    setCustomCategoryError('');
+    try {
+      const res = await createCategoryAction(customCategoryInput);
+      if (!res.success) {
+        setCustomCategoryError(res.error || 'Failed to create category.');
+        return;
+      }
+      const cat = res.category;
+      if (!categoriesList.some((c) => c.id === cat.id)) {
+        setCategoriesList((prev) => [...prev, cat]);
+      }
+      setBookForm((prev) => ({ ...prev, categoryId: cat.id }));
+      setIsAddingCustomCategory(false);
+      setCustomCategoryInput('');
+    } catch (err: any) {
+      setCustomCategoryError(err.message || 'Error creating category.');
+    } finally {
+      setIsSavingCategory(false);
+    }
+  };
+
   const resetForm = () => {
     setEditingBook(null);
+    setIsAddingCustomCategory(false);
+    setCustomCategoryInput('');
+    setCustomCategoryError('');
     setBookForm({
       isbn: '',
       title: '',
       author: '',
       publisher: '',
-      categoryId: categories[0]?.id || '',
+      categoryId: categoriesList[0]?.id || '',
       subject: '',
       classGrade: '',
       description: '',
@@ -197,7 +235,7 @@ export function BookCatalog({ initialBooks, categories, userRole }: BookCatalogP
           className="p-2 rounded-xl bg-stone-50 border border-stone-200"
         >
           <option value="ALL">All Categories</option>
-          {categories.map((c) => (
+          {categoriesList.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>
@@ -404,16 +442,64 @@ export function BookCatalog({ initialBooks, categories, userRole }: BookCatalogP
             <div>
               <label className="block font-semibold text-stone-700 mb-1">Category *</label>
               <select
-                value={bookForm.categoryId}
-                onChange={(e) => setBookForm({ ...bookForm, categoryId: e.target.value })}
+                value={isAddingCustomCategory ? 'ADD_NEW' : bookForm.categoryId}
+                onChange={(e) => {
+                  if (e.target.value === 'ADD_NEW') {
+                    setIsAddingCustomCategory(true);
+                    setCustomCategoryInput('');
+                    setCustomCategoryError('');
+                  } else {
+                    setIsAddingCustomCategory(false);
+                    setBookForm({ ...bookForm, categoryId: e.target.value });
+                  }
+                }}
                 className="w-full p-2.5 rounded-xl bg-stone-50 border border-stone-200"
               >
-                {categories.map((c) => (
+                {categoriesList.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                   </option>
                 ))}
+                <option value="ADD_NEW">+ Add Custom Category</option>
               </select>
+
+              {isAddingCustomCategory && (
+                <div className="mt-2 space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={customCategoryInput}
+                      onChange={(e) => {
+                        setCustomCategoryInput(e.target.value);
+                        setCustomCategoryError('');
+                      }}
+                      placeholder="Category Name..."
+                      className="flex-1 p-2 rounded-xl bg-white border border-orange-300 text-xs focus:ring-2 focus:ring-orange-500/20"
+                    />
+                    <button
+                      type="button"
+                      disabled={isSavingCategory}
+                      onClick={handleSaveCustomCategory}
+                      className="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl text-xs transition-colors shrink-0"
+                    >
+                      {isSavingCategory ? '...' : 'Save'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddingCustomCategory(false);
+                        setCustomCategoryError('');
+                      }}
+                      className="px-2 py-2 text-stone-500 hover:bg-stone-100 rounded-xl text-xs"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  {customCategoryError && (
+                    <p className="text-[11px] text-rose-600 font-semibold">{customCategoryError}</p>
+                  )}
+                </div>
+              )}
             </div>
             <div>
               <label className="block font-semibold text-stone-700 mb-1">Subject</label>

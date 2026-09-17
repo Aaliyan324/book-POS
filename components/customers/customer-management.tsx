@@ -1,11 +1,11 @@
-'use client';
-
 import React, { useState } from 'react';
-import { Search, UserPlus, Phone, Mail, MapPin, Receipt, CreditCard, ChevronRight } from 'lucide-react';
-import { formatPKR, formatDate } from '@/lib/utils';
+import { Search, UserPlus, Phone, Mail, MapPin, Receipt, CreditCard, ChevronRight, Download, FileText, ShoppingBag } from 'lucide-react';
+import { formatPKR, formatDate, formatDateTime } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
 import { createCustomerAction, updateCustomerAction, getCustomerDetailsAction } from '@/app/actions/customers';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface CustomerManagementProps {
   initialCustomers: any[];
@@ -67,6 +67,114 @@ export function CustomerManagement({ initialCustomers }: CustomerManagementProps
   const resetForm = () => {
     setEditingCust(null);
     setCustForm({ name: '', phone: '', email: '', address: '', notes: '' });
+  };
+
+  const exportCustomerHistoryPDF = (cust: any) => {
+    if (!cust) return;
+
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+    // Company Header
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(234, 88, 12); // Orange
+    doc.text('Sunlight Book Distributors', 14, 18);
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(50, 50, 50);
+    doc.text('CUSTOMER STATEMENT & PURCHASE HISTORY', 14, 25);
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generated on: ${new Date().toLocaleDateString('en-PK', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`, 14, 30);
+
+    // Customer Information Card Box
+    doc.setDrawColor(220, 220, 220);
+    doc.setFillColor(250, 250, 249);
+    doc.rect(14, 34, 182, 28, 'F');
+    doc.rect(14, 34, 182, 28, 'S');
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 41, 59);
+    doc.text(`Customer: ${cust.name} (${cust.customerId})`, 18, 41);
+
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Phone: ${cust.phone || 'N/A'}  |  Email: ${cust.email || 'N/A'}`, 18, 47);
+    doc.text(`Address: ${cust.address || 'N/A'}`, 18, 53);
+
+    const totalOrders = cust.sales?.length || 0;
+    const totalSpentStr = `Rs. ${cust.totalPurchases.toLocaleString()}`;
+    const totalPaidStr = `Rs. ${cust.totalPaid.toLocaleString()}`;
+    const dueStr = `Rs. ${cust.outstandingBalance.toLocaleString()}`;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Total Orders: ${totalOrders}  |  Total Spent: ${totalSpentStr}  |  Total Paid: ${totalPaidStr}  |  Outstanding: ${dueStr}`, 18, 58);
+
+    // Prepare table rows
+    const tableRows = (cust.sales || []).map((sale: any) => {
+      const itemsList = (sale.items || [])
+        .map((i: any) => {
+          const title = i.bookTitle || i.book?.title || 'Book';
+          return `${i.quantity}x ${title} @ Rs. ${i.unitPrice}`;
+        })
+        .join('\n');
+
+      const dateStr = new Date(sale.createdAt).toLocaleDateString('en-PK', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
+
+      return [
+        sale.invoiceNumber,
+        dateStr,
+        itemsList || 'N/A',
+        `Rs. ${sale.grandTotal.toLocaleString()}`,
+        `Rs. ${sale.paidAmount.toLocaleString()}`,
+        `Rs. ${sale.remainingAmount.toLocaleString()}`,
+        sale.paymentStatus,
+      ];
+    });
+
+    autoTable(doc, {
+      startY: 67,
+      head: [['Invoice #', 'Date', 'Purchased Items (Qty x Book @ Unit Price)', 'Grand Total', 'Paid Amount', 'Remaining', 'Status']],
+      body: tableRows,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [234, 88, 12],
+        textColor: [255, 255, 255],
+        fontSize: 8,
+        fontStyle: 'bold',
+      },
+      bodyStyles: {
+        fontSize: 8,
+        textColor: [30, 41, 59],
+        cellPadding: 3,
+      },
+      columnStyles: {
+        0: { fontStyle: 'bold', cellWidth: 26 },
+        1: { cellWidth: 22 },
+        2: { cellWidth: 70 },
+        3: { halign: 'right', fontStyle: 'bold', cellWidth: 22 },
+        4: { halign: 'right', cellWidth: 20 },
+        5: { halign: 'right', cellWidth: 22 },
+        6: { halign: 'center', cellWidth: 20 },
+      },
+      didDrawPage: (data) => {
+        doc.setFontSize(8);
+        doc.setTextColor(150, 150, 150);
+        doc.text(`Page ${data.pageNumber} - Sunlight Book POS Customer Record`, 14, doc.internal.pageSize.height - 10);
+      },
+    });
+
+    const safeFilename = `Customer_History_${cust.name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+    doc.save(safeFilename);
   };
 
   return (
@@ -232,57 +340,155 @@ export function CustomerManagement({ initialCustomers }: CustomerManagementProps
         onClose={() => setSelectedCustDetail(null)}
         title={selectedCustDetail?.name}
         description={`Customer ID: ${selectedCustDetail?.customerId}`}
-        maxWidth="4xl"
+        maxWidth="5xl"
       >
         {selectedCustDetail && (
           <div className="space-y-6 text-xs">
-            <div className="grid grid-cols-3 gap-4 bg-stone-50 p-4 rounded-xl border border-stone-200">
-              <div>
-                <p className="text-stone-400">Total Purchases</p>
-                <p className="text-base font-bold text-stone-900">{formatPKR(selectedCustDetail.totalPurchases)}</p>
+            {/* Header Toolbar with PDF Export Button */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-stone-50 p-4 rounded-xl border border-stone-200">
+              <div className="space-y-1">
+                <h4 className="font-bold text-stone-900 text-sm flex items-center gap-2">
+                  <span>{selectedCustDetail.name}</span>
+                  <span className="text-[10px] font-mono text-orange-600 bg-orange-50 px-2 py-0.5 rounded-md border border-orange-200 font-bold">
+                    {selectedCustDetail.customerId}
+                  </span>
+                </h4>
+                <div className="flex flex-wrap items-center gap-3 text-stone-500 text-[11px]">
+                  {selectedCustDetail.phone && <span>Phone: {selectedCustDetail.phone}</span>}
+                  {selectedCustDetail.email && <span>Email: {selectedCustDetail.email}</span>}
+                  {selectedCustDetail.address && <span>Address: {selectedCustDetail.address}</span>}
+                </div>
               </div>
-              <div>
-                <p className="text-stone-400">Total Paid</p>
-                <p className="text-base font-bold text-emerald-700">{formatPKR(selectedCustDetail.totalPaid)}</p>
+
+              <button
+                onClick={() => exportCustomerHistoryPDF(selectedCustDetail)}
+                className="px-4 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 shrink-0"
+              >
+                <Download className="w-4 h-4 text-orange-400" />
+                <span>Download Purchase History PDF</span>
+              </button>
+            </div>
+
+            {/* Metrics Overview Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-white p-3.5 rounded-xl border border-stone-200">
+                <p className="text-stone-400 text-[11px] font-medium">Total Orders</p>
+                <p className="text-lg font-extrabold text-stone-900">
+                  {selectedCustDetail.sales?.length || 0}
+                </p>
               </div>
-              <div>
-                <p className="text-stone-400">Outstanding Balance</p>
-                <p className="text-base font-bold text-rose-600">{formatPKR(selectedCustDetail.outstandingBalance)}</p>
+              <div className="bg-white p-3.5 rounded-xl border border-stone-200">
+                <p className="text-stone-400 text-[11px] font-medium">Total Amount Spent</p>
+                <p className="text-lg font-extrabold text-stone-900">
+                  {formatPKR(selectedCustDetail.totalPurchases)}
+                </p>
+              </div>
+              <div className="bg-white p-3.5 rounded-xl border border-stone-200">
+                <p className="text-stone-400 text-[11px] font-medium">Total Paid</p>
+                <p className="text-lg font-extrabold text-emerald-700">
+                  {formatPKR(selectedCustDetail.totalPaid)}
+                </p>
+              </div>
+              <div className="bg-white p-3.5 rounded-xl border border-stone-200">
+                <p className="text-stone-400 text-[11px] font-medium">Outstanding Due</p>
+                <p className="text-lg font-extrabold text-rose-600">
+                  {formatPKR(selectedCustDetail.outstandingBalance)}
+                </p>
               </div>
             </div>
 
-            <div>
-              <h4 className="text-sm font-bold text-stone-900 mb-2">Purchase & Sales History</h4>
-              <div className="border border-stone-200 rounded-xl overflow-hidden">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-stone-50 border-b border-stone-200 font-bold text-stone-400 uppercase text-[10px]">
-                    <tr>
-                      <th className="p-3">Invoice #</th>
-                      <th className="p-3">Date</th>
-                      <th className="p-3 text-right">Grand Total</th>
-                      <th className="p-3 text-right">Paid</th>
-                      <th className="p-3 text-right">Remaining</th>
-                      <th className="p-3 text-center">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-stone-100">
-                    {selectedCustDetail.sales?.map((sale: any) => (
-                      <tr key={sale.id}>
-                        <td className="p-3 font-mono font-bold text-stone-900">{sale.invoiceNumber}</td>
-                        <td className="p-3 text-stone-500">{formatDate(sale.createdAt)}</td>
-                        <td className="p-3 text-right font-bold text-stone-900">{formatPKR(sale.grandTotal)}</td>
-                        <td className="p-3 text-right font-semibold text-emerald-700">{formatPKR(sale.paidAmount)}</td>
-                        <td className="p-3 text-right font-semibold text-rose-600">{formatPKR(sale.remainingAmount)}</td>
-                        <td className="p-3 text-center">
-                          <Badge variant={sale.paymentStatus === 'PAID' ? 'success' : 'warning'}>
+            {/* Detailed Itemized Purchase History Cards / Rows */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-bold text-stone-900 flex items-center gap-2">
+                <ShoppingBag className="w-4 h-4 text-orange-600" />
+                <span>Complete Purchase History</span>
+              </h4>
+
+              {(!selectedCustDetail.sales || selectedCustDetail.sales.length === 0) ? (
+                <div className="py-10 text-center text-stone-400 bg-stone-50 rounded-xl border border-stone-200">
+                  No sales recorded for this customer yet.
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+                  {selectedCustDetail.sales.map((sale: any) => (
+                    <div
+                      key={sale.id}
+                      className="bg-white p-4 rounded-xl border border-stone-200/90 shadow-2xs space-y-3 hover:border-stone-300 transition-colors"
+                    >
+                      {/* Sale Header */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-stone-100">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-stone-900 text-xs sm:text-sm">
+                            #{sale.invoiceNumber}
+                          </span>
+                          <span className="text-stone-400">•</span>
+                          <span className="text-stone-500 text-[11px]">
+                            {formatDate(sale.createdAt)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs">
+                          <Badge
+                            variant={
+                              sale.paymentStatus === 'PAID'
+                                ? 'success'
+                                : sale.paymentStatus === 'PARTIALLY_PAID'
+                                ? 'warning'
+                                : 'danger'
+                            }
+                          >
                             {sale.paymentStatus}
                           </Badge>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                          <span className="font-extrabold text-stone-900">
+                            {formatPKR(sale.grandTotal)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Items Purchased List */}
+                      <div className="space-y-1.5 bg-stone-50/70 p-3 rounded-lg border border-stone-100 text-[11px]">
+                        <p className="font-bold text-stone-500 uppercase text-[9px] mb-1">
+                          Items Purchased:
+                        </p>
+                        {sale.items?.map((item: any, idx: number) => {
+                          const bookTitle = item.bookTitle || item.book?.title || 'Book Item';
+                          return (
+                            <div
+                              key={idx}
+                              className="flex items-center justify-between gap-2 text-stone-800"
+                            >
+                              <span className="font-medium truncate">
+                                {item.quantity} × <strong className="text-stone-900">{bookTitle}</strong>
+                              </span>
+                              <span className="font-semibold text-stone-600 shrink-0">
+                                @ {formatPKR(item.unitPrice)} ={' '}
+                                <strong className="text-stone-900">{formatPKR(item.unitPrice * item.quantity)}</strong>
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Sale Financial Breakdown Footer */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] pt-1 text-stone-600">
+                        <div>
+                          <span>Paid: </span>
+                          <strong className="text-emerald-700">{formatPKR(sale.paidAmount)}</strong>
+                          {sale.remainingAmount > 0 && (
+                            <span className="ml-2 text-rose-600">
+                              (Remaining: <strong>{formatPKR(sale.remainingAmount)}</strong>)
+                            </span>
+                          )}
+                        </div>
+                        {sale.payments && sale.payments[0] && (
+                          <div className="text-stone-500">
+                            Payment Method: <strong className="text-stone-800">{sale.payments[0].method}</strong>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

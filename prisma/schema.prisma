@@ -139,6 +139,7 @@ model SaleItem {
   sale      Sale   @relation(fields: [saleId], references: [id], onDelete: Cascade)
   bookId    String
   book      Book   @relation(fields: [bookId], references: [id])
+  bookTitle String?
   quantity  Int
   unitPrice Float
   discount  Float  @default(0)
