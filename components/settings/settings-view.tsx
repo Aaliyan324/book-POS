@@ -10,14 +10,14 @@ interface SettingsViewProps {
 
 export function SettingsView({ initialSettings }: SettingsViewProps) {
   const [settings, setSettings] = useState({
-    company_name: initialSettings.company_name || 'Sunlight Book Distributors',
+    company_name: initialSettings.company_name || 'Mudassar Publishers',
     company_phone: initialSettings.company_phone || '+92 300 1234567',
-    company_email: initialSettings.company_email || 'pos@sunlightbooks.pk',
+    company_email: initialSettings.company_email || 'info@mudassarpublishers.com',
     company_address: initialSettings.company_address || 'Main Commercial Market, Gulberg III, Lahore',
     currency: initialSettings.currency || 'Rs.',
     tax_rate: initialSettings.tax_rate || '0',
     invoice_prefix: initialSettings.invoice_prefix || 'INV-',
-    pos_receipt_footer: initialSettings.pos_receipt_footer || 'Thank you for shopping at Sunlight Books!',
+    pos_receipt_footer: initialSettings.pos_receipt_footer || 'Thank you for shopping at Mudassar Publishers!',
   });
 
   const [isSaving, setIsSaving] = useState(false);

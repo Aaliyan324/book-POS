@@ -62,10 +62,10 @@ export function Sidebar({ userRole, userName, userEmployeeId, isMobileOpen = fal
           </div>
           <div>
             <span className="font-bold text-base text-stone-900 tracking-tight block leading-none">
-              SUNLIGHT
+              MUDASSAR
             </span>
             <span className="text-[10px] uppercase tracking-widest text-orange-600 font-semibold mt-1 block">
-              Book POS System
+              Publishers POS
             </span>
           </div>
         </Link>

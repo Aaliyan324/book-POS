@@ -16,7 +16,7 @@ export default function LoginPage() {
             <BookMarked className="w-7 h-7" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-stone-900">
-            Sunlight Book POS
+            Mudassar Publishers POS
           </h1>
           <p className="text-xs text-stone-500">
             Sign in to access your point of sale, inventory, and sales ledger.

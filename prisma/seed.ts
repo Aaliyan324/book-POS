@@ -14,14 +14,14 @@ async function main() {
   // 1. Seed Settings
   console.log('Seeding settings...');
   const settingsData = [
-    { key: 'company_name', value: 'Sunlight Book Distributors' },
+    { key: 'company_name', value: 'Mudassar Publishers' },
     { key: 'company_phone', value: '+92 300 1234567' },
-    { key: 'company_email', value: 'pos@sunlightbooks.pk' },
+    { key: 'company_email', value: 'info@mudassarpublishers.com' },
     { key: 'company_address', value: 'Main Commercial Market, Block H, Gulberg III, Lahore' },
     { key: 'currency', value: 'Rs.' },
     { key: 'tax_rate', value: '0' },
     { key: 'invoice_prefix', value: 'INV-' },
-    { key: 'pos_receipt_footer', value: 'Thank you for shopping at Sunlight Books! Knowledge is light.' },
+    { key: 'pos_receipt_footer', value: 'Thank you for shopping at Mudassar Publishers!' },
   ];
 
   for (const s of settingsData) {

@@ -29,11 +29,11 @@ export function ReceiptModal({
     window.print();
   };
 
-  const companyName = companyInfo.company_name || 'Sunlight Book Distributors';
+  const companyName = companyInfo.company_name || 'Mudassar Publishers';
   const companyPhone = companyInfo.company_phone || '+92 300 1234567';
-  const companyEmail = companyInfo.company_email || 'pos@sunlightbooks.pk';
+  const companyEmail = companyInfo.company_email || 'info@mudassarpublishers.com';
   const companyAddress = companyInfo.company_address || 'Main Commercial Market, Gulberg III, Lahore';
-  const receiptFooter = companyInfo.pos_receipt_footer || 'Thank you for shopping at Sunlight Books!';
+  const receiptFooter = companyInfo.pos_receipt_footer || 'Thank you for shopping at Mudassar Publishers!';
 
   return (
     <Modal
@@ -203,7 +203,7 @@ export function ReceiptModal({
           {/* Receipt Footer */}
           <div className="text-center pt-4 mt-4 border-t border-dashed border-stone-200 text-stone-400 text-[10px]">
             <p className="italic">{receiptFooter}</p>
-            <p className="mt-0.5 font-mono">Software Powered by Sunlight POS</p>
+            <p className="mt-0.5 font-mono">Software Powered by Mudassar Publishers POS</p>
           </div>
         </div>
 
