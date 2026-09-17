@@ -177,6 +177,27 @@ export function ReceiptModal({
                 {sale.paymentStatus}
               </Badge>
             </div>
+
+            {/* Payment Transactions & Dates Breakdown */}
+            {sale.payments && sale.payments.length > 0 && (
+              <div className="mt-3 pt-2.5 border-t border-stone-200/80 text-[10px]">
+                <p className="font-bold text-stone-700 uppercase tracking-wider mb-1">
+                  Payment History & Payment Dates:
+                </p>
+                <div className="space-y-1 bg-stone-50 p-2 rounded-lg border border-stone-100">
+                  {sale.payments.map((p: any, idx: number) => (
+                    <div key={p.id || idx} className="flex items-center justify-between text-stone-600">
+                      <span className="font-mono text-stone-500">
+                        {formatDateTime(p.createdAt)} ({p.method})
+                      </span>
+                      <span className="font-bold text-emerald-700">
+                        + {formatPKR(p.amount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Receipt Footer */}

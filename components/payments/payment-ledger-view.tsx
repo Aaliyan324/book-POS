@@ -206,6 +206,7 @@ export function PaymentLedgerView({ payments, outstandingSales }: PaymentLedgerV
               <thead>
                 <tr className="border-b border-stone-200 bg-stone-50/50 text-stone-400 uppercase text-[10px] font-bold">
                   <th className="py-3.5 px-4">Invoice #</th>
+                  <th className="py-3.5 px-4">Sale Date</th>
                   <th className="py-3.5 px-4">Customer</th>
                   <th className="py-3.5 px-4 text-right">Grand Total</th>
                   <th className="py-3.5 px-4 text-right">Amount Paid</th>
@@ -217,7 +218,7 @@ export function PaymentLedgerView({ payments, outstandingSales }: PaymentLedgerV
               <tbody className="divide-y divide-stone-100">
                 {outstandingSales.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-stone-400">
+                    <td colSpan={8} className="py-12 text-center text-stone-400">
                       Great! There are currently no outstanding credit balances.
                     </td>
                   </tr>
@@ -226,6 +227,9 @@ export function PaymentLedgerView({ payments, outstandingSales }: PaymentLedgerV
                     <tr key={sale.id} className="hover:bg-stone-50/60 transition-colors">
                       <td className="py-3.5 px-4 font-mono font-bold text-stone-900">
                         {sale.invoiceNumber}
+                      </td>
+                      <td className="py-3.5 px-4 text-stone-500 font-mono text-[11px]">
+                        {formatDateTime(sale.createdAt)}
                       </td>
                       <td className="py-3.5 px-4 font-bold text-stone-900">
                         {sale.customer?.name || 'Walk-in Customer'}
