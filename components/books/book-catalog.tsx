@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Plus, Search, Filter, Edit, Trash2, BookOpen, AlertTriangle, ArrowUpDown } from 'lucide-react';
+import { Plus, Search, Filter, Edit, Trash2, BookOpen, AlertTriangle, ArrowUpDown, Upload, X, ImageIcon } from 'lucide-react';
 import { formatPKR } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
@@ -47,6 +47,12 @@ export function BookCatalog({ initialBooks, categories, userRole }: BookCatalogP
     barcode: '',
   });
 
+  // Image upload state
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>('');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [imageUploadError, setImageUploadError] = useState('');
+
   // Stock Adjustment Modal State
   const [stockModalBook, setStockModalBook] = useState<any | null>(null);
   const [adjustQty, setAdjustQty] = useState(0);
@@ -81,13 +87,39 @@ export function BookCatalog({ initialBooks, categories, userRole }: BookCatalogP
       return;
     }
 
+    let finalCoverImage = bookForm.coverImage;
+
+    // Upload image to Vercel Blob if a new file was picked
+    if (imageFile) {
+      setIsUploadingImage(true);
+      setImageUploadError('');
+      try {
+        const formData = new FormData();
+        formData.append('file', imageFile);
+        const res = await fetch('/api/upload-book-image', {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Upload failed');
+        finalCoverImage = data.url;
+      } catch (err: any) {
+        setImageUploadError(err.message || 'Image upload failed. Check your Vercel Blob token.');
+        setIsUploadingImage(false);
+        return;
+      } finally {
+        setIsUploadingImage(false);
+      }
+    }
+
     try {
+      const payload = { ...bookForm, coverImage: finalCoverImage };
       if (editingBook) {
-        const res = await updateBookAction(editingBook.id, bookForm);
+        const res = await updateBookAction(editingBook.id, payload);
         if (!res.success) throw new Error(res.error);
         setBooks((prev) => prev.map((b) => (b.id === editingBook.id ? res.book : b)));
       } else {
-        const res = await createBookAction(bookForm);
+        const res = await createBookAction(payload);
         if (!res.success) throw new Error(res.error);
         setBooks((prev) => [res.book, ...prev]);
       }
@@ -176,6 +208,9 @@ export function BookCatalog({ initialBooks, categories, userRole }: BookCatalogP
     setIsAddingCustomCategory(false);
     setCustomCategoryInput('');
     setCustomCategoryError('');
+    setImageFile(null);
+    setImagePreview('');
+    setImageUploadError('');
     setBookForm({
       isbn: '',
       title: '',
@@ -345,6 +380,9 @@ export function BookCatalog({ initialBooks, categories, userRole }: BookCatalogP
                           <button
                             onClick={() => {
                               setEditingBook(book);
+                              setImageFile(null);
+                              setImagePreview(book.coverImage || '');
+                              setImageUploadError('');
                               setBookForm({
                                 isbn: book.isbn || '',
                                 title: book.title,
@@ -595,6 +633,101 @@ export function BookCatalog({ initialBooks, categories, userRole }: BookCatalogP
             </div>
           </div>
 
+          {/* Cover Image Upload Section */}
+          <div>
+            <label className="block font-semibold text-stone-700 mb-2">Book Cover Image</label>
+            <div className="space-y-2">
+              {/* Image Preview or Drop Zone */}
+              {imagePreview || bookForm.coverImage ? (
+                <div className="relative group w-full h-44 bg-stone-100 rounded-xl overflow-hidden border border-stone-200 flex items-center justify-center">
+                  <img
+                    src={imagePreview || bookForm.coverImage}
+                    alt="Cover preview"
+                    className="w-full h-full object-contain"
+                  />
+                  {/* Overlay on hover */}
+                  <div className="absolute inset-0 bg-stone-900/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                    <label
+                      htmlFor="cover-upload"
+                      className="px-3 py-2 bg-white text-stone-900 font-semibold text-[11px] rounded-lg cursor-pointer hover:bg-stone-100 flex items-center gap-1.5 transition-colors"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      Change Image
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setImageFile(null);
+                        setImagePreview('');
+                        setBookForm({ ...bookForm, coverImage: '' });
+                      }}
+                      className="px-3 py-2 bg-rose-500 text-white font-semibold text-[11px] rounded-lg hover:bg-rose-600 flex items-center gap-1.5 transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                // Drop / Click Zone
+                <label
+                  htmlFor="cover-upload"
+                  className="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-stone-300 hover:border-orange-400 bg-stone-50 hover:bg-orange-50/30 rounded-xl cursor-pointer transition-all group"
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const file = e.dataTransfer.files[0];
+                    if (file && file.type.startsWith('image/')) {
+                      setImageFile(file);
+                      setImagePreview(URL.createObjectURL(file));
+                      setImageUploadError('');
+                    }
+                  }}
+                >
+                  <ImageIcon className="w-8 h-8 text-stone-300 group-hover:text-orange-400 transition-colors mb-2" />
+                  <p className="text-xs font-semibold text-stone-500 group-hover:text-orange-600 transition-colors">
+                    Click to upload or drag & drop
+                  </p>
+                  <p className="text-[10px] text-stone-400 mt-0.5">PNG, JPG, WEBP — max 5 MB</p>
+                </label>
+              )}
+
+              {/* Hidden file input */}
+              <input
+                id="cover-upload"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setImageFile(file);
+                    setImagePreview(URL.createObjectURL(file));
+                    setImageUploadError('');
+                  }
+                  // Reset input so re-selecting same file also fires
+                  e.target.value = '';
+                }}
+              />
+
+              {/* Upload status messages */}
+              {isUploadingImage && (
+                <div className="flex items-center gap-2 text-[11px] text-orange-600 font-semibold">
+                  <div className="w-3.5 h-3.5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin shrink-0" />
+                  Uploading image to Vercel Blob...
+                </div>
+              )}
+              {imageUploadError && (
+                <p className="text-[11px] text-rose-600 font-semibold">{imageUploadError}</p>
+              )}
+              {imageFile && !isUploadingImage && !imageUploadError && (
+                <p className="text-[11px] text-emerald-600 font-semibold">
+                  ✓ {imageFile.name} — will be uploaded when you save
+                </p>
+              )}
+            </div>
+          </div>
+
           <div className="flex justify-end gap-2 pt-2">
             <button
               type="button"
@@ -605,9 +738,10 @@ export function BookCatalog({ initialBooks, categories, userRole }: BookCatalogP
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-xl bg-orange-500 text-white font-semibold hover:bg-orange-600"
+              disabled={isUploadingImage}
+              className="px-4 py-2 rounded-xl bg-orange-500 text-white font-semibold hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {editingBook ? 'Update Book' : 'Create Book'}
+              {isUploadingImage ? 'Uploading...' : editingBook ? 'Update Book' : 'Create Book'}
             </button>
           </div>
         </form>
