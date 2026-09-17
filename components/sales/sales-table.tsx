@@ -347,6 +347,10 @@ export function SalesTable({ initialSales, employees, companySettings }: SalesTa
                 </span>
               </div>
               <div className="flex justify-between text-stone-600">
+                <span>Invoice Date:</span>
+                <span className="font-semibold">{formatDateTime(paymentModalSale.createdAt)}</span>
+              </div>
+              <div className="flex justify-between text-stone-600">
                 <span>Invoice Total:</span>
                 <span className="font-semibold">{formatPKR(paymentModalSale.grandTotal)}</span>
               </div>
@@ -360,6 +364,26 @@ export function SalesTable({ initialSales, employees, companySettings }: SalesTa
                 <span>Remaining Due:</span>
                 <span>{formatPKR(paymentModalSale.remainingAmount)}</span>
               </div>
+
+              {/* Previous Payment Dates */}
+              {paymentModalSale.payments && paymentModalSale.payments.length > 0 && (
+                <div className="pt-2 mt-1 border-t border-stone-200 space-y-1">
+                  <p className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">
+                    Previous Payment History:
+                  </p>
+                  {paymentModalSale.payments.map((p: any, idx: number) => (
+                    <div key={p.id || idx} className="flex items-center justify-between text-[11px]">
+                      <div className="flex items-center gap-1.5">
+                        <span className="bg-emerald-100 text-emerald-700 font-bold text-[9px] px-1.5 py-0.5 rounded">
+                          {p.method}
+                        </span>
+                        <span className="text-stone-500 font-mono">{formatDateTime(p.createdAt)}</span>
+                      </div>
+                      <span className="font-bold text-emerald-700">+ {formatPKR(p.amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div>

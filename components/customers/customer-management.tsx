@@ -471,19 +471,37 @@ export function CustomerManagement({ initialCustomers }: CustomerManagementProps
                       </div>
 
                       {/* Sale Financial Breakdown Footer */}
-                      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] pt-1 text-stone-600">
-                        <div>
-                          <span>Paid: </span>
-                          <strong className="text-emerald-700">{formatPKR(sale.paidAmount)}</strong>
-                          {sale.remainingAmount > 0 && (
-                            <span className="ml-2 text-rose-600">
-                              (Remaining: <strong>{formatPKR(sale.remainingAmount)}</strong>)
-                            </span>
-                          )}
+                      <div className="space-y-2 text-[11px] pt-1 text-stone-600">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <span>Paid: </span>
+                            <strong className="text-emerald-700">{formatPKR(sale.paidAmount)}</strong>
+                            {sale.remainingAmount > 0 && (
+                              <span className="ml-2 text-rose-600">
+                                (Remaining: <strong>{formatPKR(sale.remainingAmount)}</strong>)
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        {sale.payments && sale.payments[0] && (
-                          <div className="text-stone-500">
-                            Payment Method: <strong className="text-stone-800">{sale.payments[0].method}</strong>
+                        {/* Payment Dates & Transaction History */}
+                        {sale.payments && sale.payments.length > 0 && (
+                          <div className="bg-emerald-50/60 border border-emerald-100 rounded-lg p-2.5 space-y-1">
+                            <p className="font-bold text-stone-500 uppercase text-[9px] tracking-wider mb-1.5">
+                              Payment Dates & Transactions:
+                            </p>
+                            {sale.payments.map((p: any, pIdx: number) => (
+                              <div key={p.id || pIdx} className="flex items-center justify-between gap-2 text-stone-700">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="bg-emerald-100 text-emerald-700 font-bold text-[9px] px-1.5 py-0.5 rounded">
+                                    {p.method}
+                                  </span>
+                                  <span className="text-stone-500 font-mono text-[10px]">
+                                    {formatDateTime(p.createdAt)}
+                                  </span>
+                                </div>
+                                <span className="font-extrabold text-emerald-700">+ {formatPKR(p.amount)}</span>
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>
