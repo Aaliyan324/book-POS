@@ -154,6 +154,10 @@ export function BookCatalog({ initialBooks, categories, userRole }: BookCatalogP
         return;
       }
       const cat = res.category;
+      if (!cat) {
+        setCustomCategoryError('Failed to retrieve category record.');
+        return;
+      }
       if (!categoriesList.some((c) => c.id === cat.id)) {
         setCategoriesList((prev) => [...prev, cat]);
       }

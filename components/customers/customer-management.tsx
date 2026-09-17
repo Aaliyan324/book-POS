@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState } from 'react';
 import { Search, UserPlus, Phone, Mail, MapPin, Receipt, CreditCard, ChevronRight, Download, FileText, ShoppingBag } from 'lucide-react';
 import { formatPKR, formatDate, formatDateTime } from '@/lib/utils';
@@ -340,7 +342,7 @@ export function CustomerManagement({ initialCustomers }: CustomerManagementProps
         onClose={() => setSelectedCustDetail(null)}
         title={selectedCustDetail?.name}
         description={`Customer ID: ${selectedCustDetail?.customerId}`}
-        maxWidth="5xl"
+        maxWidth="4xl"
       >
         {selectedCustDetail && (
           <div className="space-y-6 text-xs">
