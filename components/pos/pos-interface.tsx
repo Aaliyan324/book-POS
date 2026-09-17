@@ -188,6 +188,15 @@ export function POSInterface({ initialCategories, companySettings }: POSInterfac
     setCart((prev) => prev.filter((item) => item.bookId !== bookId));
   };
 
+  // Cart Helper: Update Unit Price (Auto-loaded, cashier editable)
+  const updateUnitPrice = (bookId: string, price: number) => {
+    setCart((prev) =>
+      prev.map((item) =>
+        item.bookId === bookId ? { ...item, unitPrice: Math.max(0, price) } : item
+      )
+    );
+  };
+
   // Cart Helper: Clear All
   const clearCart = () => {
     setCart([]);
@@ -574,7 +583,7 @@ export function POSInterface({ initialCategories, companySettings }: POSInterfac
       </div>
 
       {/* RIGHT DESKTOP CART PANEL (hidden on mobile/tablet, visible on lg screens) */}
-      <div className="hidden lg:flex w-[380px] xl:w-[420px] bg-white rounded-2xl border border-stone-200/90 shadow-md flex-col shrink-0 sticky top-20 h-[calc(100vh-100px)] overflow-hidden">
+      <div className="hidden lg:flex w-[380px] xl:w-[420px] bg-white rounded-2xl border border-stone-200/90 shadow-md flex-col shrink-0 sticky top-20 max-h-[calc(100vh-90px)] overflow-y-auto min-h-0">
         <CartContent
           cart={cart}
           totalItemCount={totalItemCount}
@@ -593,6 +602,7 @@ export function POSInterface({ initialCategories, companySettings }: POSInterfac
           customers={customers}
           onOpenCustomerModal={() => setIsCustomerModalOpen(true)}
           updateQuantity={updateQuantity}
+          updateUnitPrice={updateUnitPrice}
           removeFromCart={removeFromCart}
           clearCart={clearCart}
           handleFullPay={handleFullPay}
@@ -694,6 +704,7 @@ export function POSInterface({ initialCategories, companySettings }: POSInterfac
                 customers={customers}
                 onOpenCustomerModal={() => setIsCustomerModalOpen(true)}
                 updateQuantity={updateQuantity}
+                updateUnitPrice={updateUnitPrice}
                 removeFromCart={removeFromCart}
                 clearCart={clearCart}
                 handleFullPay={handleFullPay}
@@ -809,6 +820,7 @@ interface CartContentProps {
   customers: any[];
   onOpenCustomerModal: () => void;
   updateQuantity: (bookId: string, delta: number) => void;
+  updateUnitPrice: (bookId: string, price: number) => void;
   removeFromCart: (bookId: string) => void;
   clearCart: () => void;
   handleFullPay: () => void;
@@ -838,6 +850,7 @@ function CartContent({
   customers,
   onOpenCustomerModal,
   updateQuantity,
+  updateUnitPrice,
   removeFromCart,
   clearCart,
   handleFullPay,
@@ -849,8 +862,8 @@ function CartContent({
   changeDue,
 }: CartContentProps) {
   return (
-    <div className="flex flex-col h-full bg-white text-stone-900">
-      {/* Desktop Cart Header (hidden inside mobile drawer since drawer has its own header) */}
+    <div className="flex flex-col h-full bg-white text-stone-900 overflow-y-auto">
+      {/* Desktop Cart Header */}
       <div className="hidden lg:flex p-4 border-b border-stone-100 items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="p-2 rounded-xl bg-orange-50 text-orange-600">
@@ -872,7 +885,7 @@ function CartContent({
       </div>
 
       {/* Customer Selection Box */}
-      <div className="p-3.5 sm:p-4 border-b border-stone-100 bg-stone-50/50 space-y-2">
+      <div className="p-3.5 sm:p-4 border-b border-stone-100 bg-stone-50/50 space-y-2 shrink-0">
         <div className="flex items-center justify-between text-xs">
           <span className="font-bold text-stone-700 flex items-center gap-1">
             <span>Customer Account</span>
@@ -913,7 +926,7 @@ function CartContent({
       </div>
 
       {/* Cart Items List */}
-      <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 divide-y divide-stone-100 min-h-[160px]">
+      <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 divide-y divide-stone-100 min-h-[140px]">
         {cart.length === 0 ? (
           <div className="py-14 text-center text-stone-400 text-xs flex flex-col items-center justify-center gap-2">
             <ShoppingBag className="w-10 h-10 text-stone-300" />
@@ -922,15 +935,24 @@ function CartContent({
           </div>
         ) : (
           cart.map((item) => (
-            <div key={item.bookId} className="py-3 first:pt-0 last:pb-0 flex items-center justify-between gap-3">
+            <div key={item.bookId} className="py-2.5 first:pt-0 last:pb-0 flex items-center justify-between gap-2.5">
               <div className="flex-1 min-w-0">
                 <h5 className="text-xs font-bold text-stone-900 truncate leading-tight">
                   {item.title}
                 </h5>
-                <p className="text-[11px] text-orange-600 font-semibold mt-0.5">
-                  {formatPKR(item.unitPrice)} × {item.quantity} ={' '}
-                  <span className="font-bold">{formatPKR(item.unitPrice * item.quantity)}</span>
-                </p>
+                <div className="flex items-center gap-1 text-[11px] text-orange-600 font-semibold mt-1">
+                  <span className="text-stone-400">Rs.</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={item.unitPrice}
+                    onChange={(e) => updateUnitPrice(item.bookId, parseFloat(e.target.value) || 0)}
+                    className="w-16 px-1.5 py-0.5 rounded-md bg-stone-50 border border-stone-200 font-extrabold text-stone-900 text-xs text-right focus:bg-white focus:outline-none focus:ring-1 focus:ring-orange-500"
+                    title="Auto-loaded unit price. Edit to override price."
+                  />
+                  <span className="text-stone-400 font-normal">× {item.quantity} =</span>
+                  <span className="font-extrabold text-stone-900">{formatPKR(item.unitPrice * item.quantity)}</span>
+                </div>
               </div>
 
               {/* In-Cart Quantity Adjustment */}
