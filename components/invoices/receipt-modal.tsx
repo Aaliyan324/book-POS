@@ -2,9 +2,11 @@
 
 import React, { useRef } from 'react';
 import { Modal } from '@/components/ui/modal';
-import { Printer, Download, CheckCircle2, RotateCcw } from 'lucide-react';
+import { Printer, Download, CheckCircle2, RotateCcw, Share2 } from 'lucide-react';
 import { formatPKR, formatDateTime } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface ReceiptModalProps {
   isOpen: boolean;
@@ -12,6 +14,171 @@ interface ReceiptModalProps {
   sale: any;
   companyInfo?: Record<string, string>;
   onNewSale?: () => void;
+}
+
+export function generateInvoicePDF(sale: any, companyInfo: Record<string, string> = {}) {
+  const doc = new jsPDF();
+
+  const companyName = companyInfo.company_name || 'Mudassar Publishers';
+  const companyPhone = companyInfo.company_phone || '+92 300 1234567';
+  const companyEmail = companyInfo.company_email || 'info@mudassarpublishers.com';
+  const companyAddress = companyInfo.company_address || 'Main Commercial Market, Gulberg III, Lahore';
+  const footerText = companyInfo.pos_receipt_footer || 'Thank you for shopping at Mudassar Publishers!';
+
+  // Header Title
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(234, 88, 12);
+  doc.text(companyName.toUpperCase(), 105, 16, { align: 'center' });
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(80, 80, 80);
+  doc.text(companyAddress, 105, 22, { align: 'center' });
+  doc.text(`Phone: ${companyPhone}  |  Email: ${companyEmail}`, 105, 27, { align: 'center' });
+
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.5);
+  doc.line(14, 31, 196, 31);
+
+  // Meta Section
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(20, 20, 20);
+  doc.text(`INVOICE: ${sale.invoiceNumber}`, 14, 39);
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 100, 100);
+  doc.text(`Date: ${formatDateTime(sale.createdAt)}`, 14, 45);
+  doc.text(`Staff: ${sale.user?.name || 'Store Staff'}`, 14, 51);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(20, 20, 20);
+  doc.text(`BILLED TO:`, 120, 39);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(50, 50, 50);
+  doc.text(`${sale.customer?.name || 'Walk-in Customer'}`, 120, 45);
+  if (sale.customer?.phone) doc.text(`Phone: ${sale.customer.phone}`, 120, 51);
+  if (sale.customer?.address) doc.text(`Address: ${sale.customer.address}`, 120, 57);
+
+  // Table of Items
+  const tableData = sale.items?.map((item: any) => [
+    item.book?.title || item.bookTitle || 'Book',
+    item.book?.isbn || 'N/A',
+    item.quantity.toString(),
+    formatPKR(item.unitPrice),
+    formatPKR(item.subtotal),
+  ]) || [];
+
+  autoTable(doc, {
+    startY: sale.customer?.address ? 62 : 56,
+    head: [['Item / Book Title', 'ISBN', 'Qty', 'Unit Price', 'Total']],
+    body: tableData,
+    theme: 'striped',
+    headStyles: { fillColor: [234, 88, 12], textColor: [255, 255, 255], fontStyle: 'bold' },
+    styles: { fontSize: 8.5, cellPadding: 3 },
+    columnStyles: {
+      0: { cellWidth: 80 },
+      1: { cellWidth: 35 },
+      2: { cellWidth: 20, halign: 'center' },
+      3: { cellWidth: 30, halign: 'right' },
+      4: { cellWidth: 30, halign: 'right' },
+    },
+  });
+
+  const finalY = (doc as any).lastAutoTable.finalY + 8;
+
+  // Breakdown Summary
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(60, 60, 60);
+
+  let currentY = finalY;
+  doc.text(`Subtotal:`, 130, currentY);
+  doc.text(formatPKR(sale.subtotal), 196, currentY, { align: 'right' });
+
+  if (sale.discount > 0) {
+    currentY += 5;
+    doc.text(`Discount:`, 130, currentY);
+    doc.text(`-${formatPKR(sale.discount)}`, 196, currentY, { align: 'right' });
+  }
+
+  if (sale.tax > 0) {
+    currentY += 5;
+    doc.text(`Tax:`, 130, currentY);
+    doc.text(`+${formatPKR(sale.tax)}`, 196, currentY, { align: 'right' });
+  }
+
+  currentY += 7;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(234, 88, 12);
+  doc.text(`Grand Total:`, 130, currentY);
+  doc.text(formatPKR(sale.grandTotal), 196, currentY, { align: 'right' });
+
+  currentY += 6;
+  doc.setFontSize(9.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(16, 185, 129);
+  doc.text(`Paid Amount:`, 130, currentY);
+  doc.text(formatPKR(sale.paidAmount), 196, currentY, { align: 'right' });
+
+  if (sale.remainingAmount > 0) {
+    currentY += 6;
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(220, 38, 38);
+    doc.text(`Remaining Balance:`, 130, currentY);
+    doc.text(formatPKR(sale.remainingAmount), 196, currentY, { align: 'right' });
+  }
+
+  currentY += 12;
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'italic');
+  doc.setTextColor(150, 150, 150);
+  doc.text(footerText, 105, currentY, { align: 'center' });
+
+  doc.save(`Invoice_${sale.invoiceNumber}.pdf`);
+}
+
+export function shareInvoiceOnWhatsApp(sale: any, companyInfo: Record<string, string> = {}) {
+  const companyName = companyInfo.company_name || 'Mudassar Publishers';
+  const customerPhone = sale.customer?.phone || '';
+
+  let formattedPhone = customerPhone.replace(/\D/g, '');
+  if (formattedPhone.startsWith('03')) {
+    formattedPhone = '92' + formattedPhone.substring(1);
+  } else if (formattedPhone.startsWith('3')) {
+    formattedPhone = '92' + formattedPhone;
+  }
+
+  const itemsList = sale.items
+    ?.map((i: any) => `• ${i.book?.title || i.bookTitle || 'Book'} (Qty: ${i.quantity}) - ${formatPKR(i.subtotal)}`)
+    .join('\n');
+
+  const text = `📚 *${companyName.toUpperCase()} - OFFICIAL INVOICE* 📚
+-------------------------------------------
+*Invoice #:* ${sale.invoiceNumber}
+*Date:* ${formatDateTime(sale.createdAt)}
+*Customer:* ${sale.customer?.name || 'Walk-in Customer'}
+
+*Items Purchased:*
+${itemsList || 'N/A'}
+
+-------------------------------------------
+*Grand Total:* ${formatPKR(sale.grandTotal)}
+*Amount Paid:* ${formatPKR(sale.paidAmount)}
+*Payment Status:* ${sale.paymentStatus}
+${sale.remainingAmount > 0 ? `*Remaining Balance:* ${formatPKR(sale.remainingAmount)}` : ''}
+-------------------------------------------
+${companyInfo.pos_receipt_footer || 'Thank you for your business!'}`;
+
+  const encodedText = encodeURIComponent(text);
+  const waUrl = formattedPhone
+    ? `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`
+    : `https://api.whatsapp.com/send?text=${encodedText}`;
+
+  window.open(waUrl, '_blank');
 }
 
 export function ReceiptModal({
@@ -27,6 +194,14 @@ export function ReceiptModal({
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleDownloadPDF = () => {
+    generateInvoicePDF(sale, companyInfo);
+  };
+
+  const handleWhatsAppShare = () => {
+    shareInvoiceOnWhatsApp(sale, companyInfo);
   };
 
   const companyName = companyInfo.company_name || 'Mudassar Publishers';
@@ -106,7 +281,7 @@ export function ReceiptModal({
                 {sale.items?.map((item: any, idx: number) => (
                   <tr key={idx}>
                     <td className="py-2 pr-2">
-                      <p className="font-semibold text-stone-900">{item.book?.title || 'Book'}</p>
+                      <p className="font-semibold text-stone-900">{item.book?.title || item.bookTitle || 'Book'}</p>
                       <p className="text-[10px] text-stone-400 font-mono">
                         ISBN: {item.book?.isbn || 'N/A'}
                       </p>
@@ -207,28 +382,44 @@ export function ReceiptModal({
           </div>
         </div>
 
-        {/* Modal Buttons */}
-        <div className="flex flex-wrap items-center justify-between gap-3 no-print pt-2">
-          <button
-            onClick={handlePrint}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-xs bg-stone-900 text-white hover:bg-stone-800 transition-colors"
-          >
-            <Printer className="w-4 h-4" />
-            <span>Print Invoice / Receipt</span>
-          </button>
-
-          <div className="flex items-center gap-2">
+        {/* Modal Action Buttons */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 no-print pt-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={() => {
-                onClose();
-                if (onNewSale) onNewSale();
-              }}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-xs bg-orange-500 text-white hover:bg-orange-600 shadow-xs transition-colors"
+              onClick={handlePrint}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl font-bold text-xs bg-stone-900 text-white hover:bg-stone-800 transition-colors shadow-xs"
             >
-              <RotateCcw className="w-4 h-4" />
-              <span>Start New Sale</span>
+              <Printer className="w-4 h-4" />
+              <span>Print Invoice</span>
+            </button>
+
+            <button
+              onClick={handleDownloadPDF}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl font-bold text-xs bg-stone-100 text-stone-800 hover:bg-stone-200 transition-colors border border-stone-200"
+            >
+              <Download className="w-4 h-4 text-stone-600" />
+              <span>Download PDF</span>
+            </button>
+
+            <button
+              onClick={handleWhatsAppShare}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl font-bold text-xs bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-xs"
+            >
+              <Share2 className="w-4 h-4" />
+              <span>Share on WhatsApp</span>
             </button>
           </div>
+
+          <button
+            onClick={() => {
+              onClose();
+              if (onNewSale) onNewSale();
+            }}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-xs bg-orange-500 text-white hover:bg-orange-600 shadow-xs transition-colors"
+          >
+            <RotateCcw className="w-4 h-4" />
+            <span>Start New Sale</span>
+          </button>
         </div>
       </div>
     </Modal>

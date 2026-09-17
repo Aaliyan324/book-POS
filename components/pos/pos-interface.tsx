@@ -37,6 +37,15 @@ interface POSInterfaceProps {
   companySettings?: Record<string, string>;
 }
 
+export interface POSCartItemState {
+  bookId: string;
+  title: string;
+  isbn?: string;
+  priceInput: string;
+  quantityInput: string;
+  discount: number;
+}
+
 export function POSInterface({ initialCategories, companySettings }: POSInterfaceProps) {
   // Books & Catalog state
   const [searchQuery, setSearchQuery] = useState('');
@@ -46,9 +55,12 @@ export function POSInterface({ initialCategories, companySettings }: POSInterfac
   const [isLoadingBooks, setIsLoadingBooks] = useState(false);
 
   // Cart state
-  const [cart, setCart] = useState<POSCartItem[]>([]);
+  const [cart, setCart] = useState<POSCartItemState[]>([]);
   const [globalDiscount, setGlobalDiscount] = useState<number>(0);
   const [tax, setTax] = useState<number>(0);
+
+  // Validation state
+  const [invalidField, setInvalidField] = useState<{ bookId: string; field: 'price' | 'quantity' } | null>(null);
 
   // Mobile/Tablet Cart Drawer State
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
@@ -127,14 +139,8 @@ export function POSInterface({ initialCategories, companySettings }: POSInterfac
     setCart((prev) => {
       const existing = prev.find((item) => item.bookId === book.id);
       if (existing) {
-        if (existing.quantity >= book.stockQuantity) {
-          showToast(`Max available stock for "${book.title}" is ${book.stockQuantity}`, 'warning');
-          return prev;
-        }
-        showToast(`Increased quantity for "${book.title}" (${existing.quantity + 1})`, 'success');
-        return prev.map((item) =>
-          item.bookId === book.id ? { ...item, quantity: item.quantity + 1 } : item
-        );
+        showToast(`"${book.title}" is already in cart`, 'success');
+        return prev;
       }
 
       showToast(`Added "${book.title}" to cart`, 'success');
@@ -144,8 +150,8 @@ export function POSInterface({ initialCategories, companySettings }: POSInterfac
           bookId: book.id,
           title: book.title,
           isbn: book.isbn || undefined,
-          unitPrice: 0,
-          quantity: 1,
+          priceInput: '',    // completely empty initially
+          quantityInput: '', // completely empty initially
           discount: 0,
         },
       ];
@@ -156,9 +162,32 @@ export function POSInterface({ initialCategories, companySettings }: POSInterfac
     setTimeout(() => setRecentlyAddedId(null), 500);
   };
 
-  // Cart Helper: Update Quantity (+ or -)
-  const updateQuantity = (bookId: string, delta: number, e?: React.MouseEvent) => {
+  // Cart Helper: Update Price Input
+  const updatePriceInput = (bookId: string, val: string) => {
+    if (invalidField?.bookId === bookId && invalidField?.field === 'price') {
+      setInvalidField(null);
+    }
+    setCart((prev) =>
+      prev.map((item) => (item.bookId === bookId ? { ...item, priceInput: val } : item))
+    );
+  };
+
+  // Cart Helper: Update Quantity Input
+  const updateQuantityInput = (bookId: string, val: string) => {
+    if (invalidField?.bookId === bookId && invalidField?.field === 'quantity') {
+      setInvalidField(null);
+    }
+    setCart((prev) =>
+      prev.map((item) => (item.bookId === bookId ? { ...item, quantityInput: val } : item))
+    );
+  };
+
+  // Cart Helper: Increment/Decrement Quantity
+  const updateQuantityDelta = (bookId: string, delta: number, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+    if (invalidField?.bookId === bookId && invalidField?.field === 'quantity') {
+      setInvalidField(null);
+    }
 
     setCart((prev) =>
       prev
@@ -166,35 +195,28 @@ export function POSInterface({ initialCategories, companySettings }: POSInterfac
           if (item.bookId === bookId) {
             const book = books.find((b) => b.id === bookId);
             const maxStock = book ? book.stockQuantity : 999;
-            const newQty = item.quantity + delta;
+            const currentQty = parseInt(item.quantityInput, 10) || 0;
+            const newQty = currentQty + delta;
 
             if (newQty > maxStock) {
               showToast(`Cannot exceed max available stock (${maxStock})`, 'warning');
               return item;
             }
-            if (newQty <= 0) {
+            if (newQty <= 0 && currentQty > 0) {
               return null;
             }
-            return { ...item, quantity: newQty };
+            return { ...item, quantityInput: Math.max(1, newQty).toString() };
           }
           return item;
         })
-        .filter(Boolean) as POSCartItem[]
+        .filter(Boolean) as POSCartItemState[]
     );
   };
 
   // Cart Helper: Remove Item
   const removeFromCart = (bookId: string) => {
     setCart((prev) => prev.filter((item) => item.bookId !== bookId));
-  };
-
-  // Cart Helper: Update Unit Price (Auto-loaded, cashier editable)
-  const updateUnitPrice = (bookId: string, price: number) => {
-    setCart((prev) =>
-      prev.map((item) =>
-        item.bookId === bookId ? { ...item, unitPrice: Math.max(0, price) } : item
-      )
-    );
+    if (invalidField?.bookId === bookId) setInvalidField(null);
   };
 
   // Cart Helper: Clear All
@@ -205,14 +227,20 @@ export function POSInterface({ initialCategories, companySettings }: POSInterfac
     setPaidAmount('');
     setSelectedCustomer(null);
     setNotes('');
+    setInvalidField(null);
+    setErrorMessage('');
   };
 
   // Totals & Financial Calculations
-  const totalItemCount = cart.reduce((acc, item) => acc + item.quantity, 0);
-  const itemSubtotal = cart.reduce(
-    (acc, item) => acc + (item.unitPrice * item.quantity - item.discount * item.quantity),
+  const totalItemCount = cart.reduce(
+    (acc, item) => acc + (parseInt(item.quantityInput, 10) || 0),
     0
   );
+  const itemSubtotal = cart.reduce((acc, item) => {
+    const p = parseFloat(item.priceInput) || 0;
+    const q = parseInt(item.quantityInput, 10) || 0;
+    return acc + (p * q - (item.discount || 0) * q);
+  }, 0);
   const grandTotal = Math.max(0, itemSubtotal - (globalDiscount || 0) + (tax || 0));
   const numericPaid = parseFloat(paidAmount) || 0;
   const remaining = Math.max(0, grandTotal - numericPaid);
@@ -234,13 +262,41 @@ export function POSInterface({ initialCategories, companySettings }: POSInterfac
       return;
     }
 
+    // 1. Verify Price
+    for (const item of cart) {
+      const p = parseFloat(item.priceInput);
+      if (!item.priceInput.trim() || isNaN(p) || p <= 0) {
+        setErrorMessage(`Please enter the book price for "${item.title}".`);
+        setInvalidField({ bookId: item.bookId, field: 'price' });
+        return;
+      }
+
+      // 2. Verify Quantity
+      const q = parseInt(item.quantityInput, 10);
+      if (!item.quantityInput.trim() || isNaN(q) || q <= 0 || !Number.isInteger(Number(item.quantityInput))) {
+        setErrorMessage(`Please enter the quantity for "${item.title}".`);
+        setInvalidField({ bookId: item.bookId, field: 'quantity' });
+        return;
+      }
+    }
+
+    setInvalidField(null);
     setErrorMessage('');
     setIsSubmitting(true);
 
     try {
+      const apiCartItems: POSCartItem[] = cart.map((item) => ({
+        bookId: item.bookId,
+        title: item.title,
+        isbn: item.isbn,
+        unitPrice: parseFloat(item.priceInput),
+        quantity: parseInt(item.quantityInput, 10),
+        discount: item.discount,
+      }));
+
       const res = await completeSaleAction({
         customerId: selectedCustomer?.id,
-        cartItems: cart,
+        cartItems: apiCartItems,
         globalDiscount,
         tax,
         paidAmount: numericPaid,
@@ -267,9 +323,9 @@ export function POSInterface({ initialCategories, companySettings }: POSInterfac
         customer: selectedCustomer,
         items: cart.map((item) => ({
           book: { title: item.title, isbn: item.isbn },
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          subtotal: item.unitPrice * item.quantity,
+          quantity: parseInt(item.quantityInput, 10),
+          unitPrice: parseFloat(item.priceInput),
+          subtotal: parseFloat(item.priceInput) * parseInt(item.quantityInput, 10),
         })),
       });
 
@@ -501,7 +557,7 @@ export function POSInterface({ initialCategories, companySettings }: POSInterfac
                         {inCartItem && (
                           <span className="absolute top-2 left-2 bg-orange-500 text-white font-extrabold text-[10px] px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1 animate-in zoom-in-50 duration-150">
                             <Check className="w-3 h-3" />
-                            <span>{inCartItem.quantity} in cart</span>
+                            <span>In Cart ({inCartItem.quantityInput || '0'})</span>
                           </span>
                         )}
                       </div>
@@ -522,26 +578,25 @@ export function POSInterface({ initialCategories, companySettings }: POSInterfac
                       )}
                     </div>
 
-                    {/* Bottom Row: Quantity Controls only (price hidden — entered manually in cart) */}
+                    {/* Bottom Row */}
                     <div className="mt-3 pt-2.5 border-t border-stone-100 flex items-center justify-end gap-2">
-                      {/* Quantity Controller directly on book card */}
                       {inCartItem ? (
                         <div
                           onClick={(e) => e.stopPropagation()}
                           className="flex items-center gap-1 bg-stone-100 p-1 rounded-xl border border-stone-200/80 shrink-0"
                         >
                           <button
-                            onClick={(e) => updateQuantity(book.id, -1, e)}
+                            onClick={(e) => updateQuantityDelta(book.id, -1, e)}
                             className="p-1 rounded-lg bg-white text-stone-700 hover:bg-rose-50 hover:text-rose-600 shadow-2xs transition-colors"
                             title="Decrease quantity"
                           >
                             <Minus className="w-3.5 h-3.5" />
                           </button>
                           <span className="text-xs font-extrabold px-1.5 text-stone-900 min-w-[18px] text-center">
-                            {inCartItem.quantity}
+                            {inCartItem.quantityInput || '1'}
                           </span>
                           <button
-                            onClick={(e) => updateQuantity(book.id, 1, e)}
+                            onClick={(e) => updateQuantityDelta(book.id, 1, e)}
                             className="p-1 rounded-lg bg-white text-stone-700 hover:bg-orange-50 hover:text-orange-600 shadow-2xs transition-colors"
                             title="Increase quantity"
                           >
@@ -571,7 +626,7 @@ export function POSInterface({ initialCategories, companySettings }: POSInterfac
         </div>
       </div>
 
-      {/* RIGHT DESKTOP CART PANEL (hidden on mobile/tablet, visible on lg screens) */}
+      {/* RIGHT DESKTOP CART PANEL */}
       <div className="hidden lg:flex w-[380px] xl:w-[420px] bg-white rounded-2xl border border-stone-200/90 shadow-md flex-col shrink-0 sticky top-20 max-h-[calc(100vh-90px)] overflow-y-auto min-h-0">
         <CartContent
           cart={cart}
@@ -590,14 +645,16 @@ export function POSInterface({ initialCategories, companySettings }: POSInterfac
           setSelectedCustomer={setSelectedCustomer}
           customers={customers}
           onOpenCustomerModal={() => setIsCustomerModalOpen(true)}
-          updateQuantity={updateQuantity}
-          updateUnitPrice={updateUnitPrice}
+          updatePriceInput={updatePriceInput}
+          updateQuantityInput={updateQuantityInput}
+          updateQuantityDelta={updateQuantityDelta}
           removeFromCart={removeFromCart}
           clearCart={clearCart}
           handleFullPay={handleFullPay}
           handleCompleteSale={handleCompleteSale}
           isSubmitting={isSubmitting}
           errorMessage={errorMessage}
+          invalidField={invalidField}
           paymentStatus={paymentStatus}
           remaining={remaining}
           changeDue={changeDue}
@@ -692,14 +749,16 @@ export function POSInterface({ initialCategories, companySettings }: POSInterfac
                 setSelectedCustomer={setSelectedCustomer}
                 customers={customers}
                 onOpenCustomerModal={() => setIsCustomerModalOpen(true)}
-                updateQuantity={updateQuantity}
-                updateUnitPrice={updateUnitPrice}
+                updatePriceInput={updatePriceInput}
+                updateQuantityInput={updateQuantityInput}
+                updateQuantityDelta={updateQuantityDelta}
                 removeFromCart={removeFromCart}
                 clearCart={clearCart}
                 handleFullPay={handleFullPay}
                 handleCompleteSale={handleCompleteSale}
                 isSubmitting={isSubmitting}
                 errorMessage={errorMessage}
+                invalidField={invalidField}
                 paymentStatus={paymentStatus}
                 remaining={remaining}
                 changeDue={changeDue}
@@ -792,7 +851,7 @@ export function POSInterface({ initialCategories, companySettings }: POSInterfac
 
 {/* REUSABLE INNER CART & CHECKOUT COMPONENT */}
 interface CartContentProps {
-  cart: POSCartItem[];
+  cart: POSCartItemState[];
   totalItemCount: number;
   itemSubtotal: number;
   globalDiscount: number;
@@ -808,14 +867,16 @@ interface CartContentProps {
   setSelectedCustomer: (cust: any | null) => void;
   customers: any[];
   onOpenCustomerModal: () => void;
-  updateQuantity: (bookId: string, delta: number) => void;
-  updateUnitPrice: (bookId: string, price: number) => void;
+  updatePriceInput: (bookId: string, val: string) => void;
+  updateQuantityInput: (bookId: string, val: string) => void;
+  updateQuantityDelta: (bookId: string, delta: number) => void;
   removeFromCart: (bookId: string) => void;
   clearCart: () => void;
   handleFullPay: () => void;
   handleCompleteSale: () => void;
   isSubmitting: boolean;
   errorMessage: string;
+  invalidField: { bookId: string; field: 'price' | 'quantity' } | null;
   paymentStatus: 'PAID' | 'PARTIALLY_PAID' | 'UNPAID';
   remaining: number;
   changeDue: number;
@@ -838,14 +899,16 @@ function CartContent({
   setSelectedCustomer,
   customers,
   onOpenCustomerModal,
-  updateQuantity,
-  updateUnitPrice,
+  updatePriceInput,
+  updateQuantityInput,
+  updateQuantityDelta,
   removeFromCart,
   clearCart,
   handleFullPay,
   handleCompleteSale,
   isSubmitting,
   errorMessage,
+  invalidField,
   paymentStatus,
   remaining,
   changeDue,
@@ -923,56 +986,108 @@ function CartContent({
             <p className="text-[11px] text-stone-400">Click any book card to add items to sale.</p>
           </div>
         ) : (
-          cart.map((item) => (
-            <div key={item.bookId} className="py-2.5 first:pt-0 last:pb-0 flex items-center justify-between gap-2.5">
-              <div className="flex-1 min-w-0">
-                <h5 className="text-xs font-bold text-stone-900 truncate leading-tight">
-                  {item.title}
-                </h5>
-                <div className="flex items-center gap-1 text-[11px] text-orange-600 font-semibold mt-1">
-                  <span className="text-stone-400">Rs.</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={item.unitPrice}
-                    onChange={(e) => updateUnitPrice(item.bookId, parseFloat(e.target.value) || 0)}
-                    className="w-16 px-1.5 py-0.5 rounded-md bg-stone-50 border border-stone-200 font-extrabold text-stone-900 text-xs text-right focus:bg-white focus:outline-none focus:ring-1 focus:ring-orange-500"
-                    title="Auto-loaded unit price. Edit to override price."
-                  />
-                  <span className="text-stone-400 font-normal">× {item.quantity} =</span>
-                  <span className="font-extrabold text-stone-900">{formatPKR(item.unitPrice * item.quantity)}</span>
+          cart.map((item) => {
+            const isPriceInvalid = invalidField?.bookId === item.bookId && invalidField?.field === 'price';
+            const isQtyInvalid = invalidField?.bookId === item.bookId && invalidField?.field === 'quantity';
+            const p = parseFloat(item.priceInput) || 0;
+            const q = parseInt(item.quantityInput, 10) || 0;
+
+            return (
+              <div
+                key={item.bookId}
+                className={`py-3 first:pt-0 last:pb-0 flex flex-col gap-2 rounded-xl p-2 transition-colors ${
+                  isPriceInvalid || isQtyInvalid ? 'bg-rose-50/60 border border-rose-200' : ''
+                }`}
+              >
+                {/* Title & Delete Header */}
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h5 className="text-xs font-bold text-stone-900 leading-tight">
+                      {item.title}
+                    </h5>
+                    {item.isbn && (
+                      <p className="text-[10px] text-stone-400 font-mono truncate">ISBN: {item.isbn}</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => removeFromCart(item.bookId)}
+                    className="p-1 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 shrink-0 transition-colors"
+                    title="Remove item"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {/* Price & Quantity Controls Row */}
+                <div className="flex items-center justify-between gap-2 pt-1">
+                  {/* Price Field */}
+                  <div className="flex flex-col gap-0.5">
+                    <label className="text-[10px] font-bold text-stone-600">Price (PKR) *</label>
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-stone-400 text-[11px] font-semibold">
+                        Rs.
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={item.priceInput}
+                        onChange={(e) => updatePriceInput(item.bookId, e.target.value)}
+                        placeholder="Enter Price"
+                        className={`w-24 pl-7 pr-2 py-1 rounded-lg text-xs font-bold bg-stone-50 border focus:bg-white focus:outline-none transition-all ${
+                          isPriceInvalid
+                            ? 'border-rose-500 ring-2 ring-rose-500/40 bg-rose-50 text-rose-900 font-extrabold'
+                            : 'border-stone-200 text-stone-900 focus:ring-1 focus:ring-orange-500'
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Quantity Field */}
+                  <div className="flex flex-col gap-0.5">
+                    <label className="text-[10px] font-bold text-stone-600">Qty *</label>
+                    <div className="flex items-center gap-1 bg-stone-100 p-0.5 rounded-xl border border-stone-200/80">
+                      <button
+                        type="button"
+                        onClick={() => updateQuantityDelta(item.bookId, -1)}
+                        className="p-1 rounded-lg bg-white text-stone-700 hover:bg-rose-50 hover:text-rose-600 shadow-2xs transition-colors"
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={item.quantityInput}
+                        onChange={(e) => updateQuantityInput(item.bookId, e.target.value)}
+                        placeholder="Qty"
+                        className={`w-12 px-1 py-1 rounded-lg text-xs font-extrabold text-center bg-white border focus:outline-none transition-all ${
+                          isQtyInvalid
+                            ? 'border-rose-500 ring-2 ring-rose-500/40 bg-rose-50 text-rose-900'
+                            : 'border-stone-200 text-stone-900 focus:ring-1 focus:ring-orange-500'
+                        }`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => updateQuantityDelta(item.bookId, 1)}
+                        className="p-1 rounded-lg bg-white text-stone-700 hover:bg-orange-50 hover:text-orange-600 shadow-2xs transition-colors"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Item Subtotal Display */}
+                  <div className="text-right shrink-0">
+                    <span className="text-[10px] text-stone-400 block font-medium">Subtotal</span>
+                    <span className="text-xs font-extrabold text-stone-900">
+                      {formatPKR(p * q)}
+                    </span>
+                  </div>
                 </div>
               </div>
-
-              {/* In-Cart Quantity Adjustment */}
-              <div className="flex items-center gap-1 bg-stone-100 p-1 rounded-xl shrink-0">
-                <button
-                  onClick={() => updateQuantity(item.bookId, -1)}
-                  className="p-1 rounded-lg bg-white text-stone-700 hover:bg-rose-50 hover:text-rose-600 shadow-2xs transition-colors"
-                >
-                  <Minus className="w-3.5 h-3.5" />
-                </button>
-                <span className="text-xs font-extrabold px-1.5 min-w-[20px] text-center text-stone-900">
-                  {item.quantity}
-                </span>
-                <button
-                  onClick={() => updateQuantity(item.bookId, 1)}
-                  className="p-1 rounded-lg bg-white text-stone-700 hover:bg-orange-50 hover:text-orange-600 shadow-2xs transition-colors"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              {/* Remove Button */}
-              <button
-                onClick={() => removeFromCart(item.bookId)}
-                className="p-1.5 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 shrink-0 transition-colors"
-                title="Remove item"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 

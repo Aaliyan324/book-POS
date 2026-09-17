@@ -8,26 +8,57 @@ export default async function PaymentsPage() {
   const user = await getSession();
   if (!user) redirect('/login');
 
-  const [payments, outstandingSales] = await Promise.all([
-    prisma.payment.findMany({
+  const [customers, walkInSales, companySettingsRaw] = await Promise.all([
+    prisma.customer.findMany({
       include: {
-        sale: true,
-        customer: true,
+        sales: {
+          include: {
+            items: { include: { book: true } },
+            payments: {
+              include: { user: { select: { name: true } } },
+              orderBy: { createdAt: 'asc' },
+            },
+            returns: true,
+            user: { select: { name: true, employeeId: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+        payments: {
+          include: { user: { select: { name: true } }, sale: true },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    }),
+    prisma.sale.findMany({
+      where: { customerId: null },
+      include: {
+        items: { include: { book: true } },
+        payments: {
+          include: { user: { select: { name: true } } },
+          orderBy: { createdAt: 'asc' },
+        },
+        returns: true,
         user: { select: { name: true, employeeId: true } },
       },
       orderBy: { createdAt: 'desc' },
-      take: 100,
+      take: 50,
     }),
-    prisma.sale.findMany({
-      where: { remainingAmount: { gt: 0 }, status: { not: 'CANCELLED' } },
-      include: { customer: true, user: { select: { name: true } } },
-      orderBy: { remainingAmount: 'desc' },
-    }),
+    prisma.setting.findMany(),
   ]);
 
+  const companySettings: Record<string, string> = {};
+  companySettingsRaw.forEach((s) => {
+    companySettings[s.key] = s.value;
+  });
+
   return (
-    <MainLayout user={user} title="Payment Ledger & Outstanding Credit">
-      <PaymentLedgerView payments={payments} outstandingSales={outstandingSales} />
+    <MainLayout user={user} title="Customer Payment Ledgers">
+      <PaymentLedgerView
+        customers={customers}
+        walkInSales={walkInSales}
+        companySettings={companySettings}
+      />
     </MainLayout>
   );
 }

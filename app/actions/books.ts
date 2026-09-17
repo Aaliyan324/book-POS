@@ -11,6 +11,8 @@ export async function getBooksAction(params?: {
   page?: number;
   limit?: number;
 }) {
+  const user = await getSession();
+
   const search = params?.search?.trim() || '';
   const categorySlug = params?.categorySlug;
   const filter = params?.filter || 'all';
@@ -19,6 +21,14 @@ export async function getBooksAction(params?: {
   const skip = (page - 1) * limit;
 
   const where: any = {};
+
+  if (user && user.role === 'EMPLOYEE') {
+    const allowed = await prisma.employeeBook.findMany({
+      where: { userId: user.id },
+      select: { bookId: true },
+    });
+    where.id = { in: allowed.map((a) => a.bookId) };
+  }
 
   if (search) {
     where.OR = [

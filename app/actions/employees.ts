@@ -12,22 +12,31 @@ export async function getEmployeesAction() {
     throw new Error('Forbidden: Only Admins can view employee management.');
   }
 
-  const employees = await prisma.user.findMany({
-    orderBy: { employeeId: 'asc' },
-    include: {
-      sales: {
-        select: {
-          grandTotal: true,
-          paidAmount: true,
-          remainingAmount: true,
-          items: { select: { quantity: true } },
+  const [employees, allBooks] = await Promise.all([
+    prisma.user.findMany({
+      orderBy: { employeeId: 'asc' },
+      include: {
+        sales: {
+          select: {
+            grandTotal: true,
+            paidAmount: true,
+            remainingAmount: true,
+            items: { select: { quantity: true } },
+          },
+        },
+        payments: {
+          select: { amount: true },
+        },
+        allowedBooks: {
+          select: { bookId: true },
         },
       },
-      payments: {
-        select: { amount: true },
-      },
-    },
-  });
+    }),
+    prisma.book.findMany({
+      select: { id: true, title: true, bookId: true, author: true },
+      orderBy: { title: 'asc' },
+    }),
+  ]);
 
   // Calculate performance metrics per employee
   const employeePerformance = employees.map((emp) => {
@@ -39,6 +48,7 @@ export async function getEmployeesAction() {
       (acc, s) => acc + s.items.reduce((sum, item) => sum + item.quantity, 0),
       0
     );
+    const allowedBookIds = emp.allowedBooks.map((b) => b.bookId);
 
     return {
       id: emp.id,
@@ -54,10 +64,11 @@ export async function getEmployeesAction() {
       paymentsCollected,
       outstandingCreated,
       booksSold,
+      allowedBookIds,
     };
   });
 
-  return employeePerformance;
+  return { employees: employeePerformance, allBooks };
 }
 
 export async function createEmployeeAction(data: {
@@ -66,6 +77,7 @@ export async function createEmployeeAction(data: {
   phone?: string;
   password: string;
   role: 'ADMIN' | 'MANAGER' | 'EMPLOYEE';
+  allowedBookIds?: string[];
 }) {
   const user = await getSession();
   if (!user || !canManageEmployees(user.role)) {
@@ -94,6 +106,15 @@ export async function createEmployeeAction(data: {
       },
     });
 
+    if (data.allowedBookIds && data.allowedBookIds.length > 0) {
+      await prisma.employeeBook.createMany({
+        data: data.allowedBookIds.map((bookId) => ({
+          userId: employee.id,
+          bookId,
+        })),
+      });
+    }
+
     await prisma.auditLog.create({
       data: {
         userId: user.id,
@@ -116,6 +137,7 @@ export async function updateEmployeeAction(id: string, data: {
   phone?: string;
   role?: 'ADMIN' | 'MANAGER' | 'EMPLOYEE';
   status?: 'ACTIVE' | 'INACTIVE';
+  allowedBookIds?: string[];
 }) {
   const user = await getSession();
   if (!user || !canManageEmployees(user.role)) {
@@ -123,10 +145,28 @@ export async function updateEmployeeAction(id: string, data: {
   }
 
   try {
+    const { allowedBookIds, ...userData } = data;
+
     const employee = await prisma.user.update({
       where: { id },
-      data,
+      data: userData,
     });
+
+    if (allowedBookIds !== undefined) {
+      await prisma.$transaction([
+        prisma.employeeBook.deleteMany({ where: { userId: id } }),
+        ...(allowedBookIds.length > 0
+          ? [
+              prisma.employeeBook.createMany({
+                data: allowedBookIds.map((bookId) => ({
+                  userId: id,
+                  bookId,
+                })),
+              }),
+            ]
+          : []),
+      ]);
+    }
 
     await prisma.auditLog.create({
       data: {
@@ -134,7 +174,7 @@ export async function updateEmployeeAction(id: string, data: {
         action: 'UPDATE_EMPLOYEE',
         entity: 'User',
         entityId: employee.id,
-        description: `Updated employee "${employee.name}" (${employee.employeeId}) details.`,
+        description: `Updated employee "${employee.name}" (${employee.employeeId}) details & book permissions.`,
       },
     });
 

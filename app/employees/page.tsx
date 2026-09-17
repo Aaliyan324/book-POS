@@ -10,11 +10,11 @@ export default async function EmployeesPage() {
   if (!user) redirect('/login');
   if (!canManageEmployees(user.role)) redirect('/dashboard');
 
-  const employees = await getEmployeesAction();
+  const { employees, allBooks } = await getEmployeesAction();
 
   return (
     <MainLayout user={user} title="Employee Management & Performance">
-      <EmployeeManagement initialEmployees={employees} />
+      <EmployeeManagement initialEmployees={employees} allBooks={allBooks} />
     </MainLayout>
   );
 }

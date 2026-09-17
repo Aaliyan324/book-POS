@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Search, Filter, Printer, CreditCard, RotateCcw, Eye, Calendar } from 'lucide-react';
+import { Search, Filter, Printer, CreditCard, RotateCcw, Eye, Calendar, Download, Share2 } from 'lucide-react';
 import { formatPKR, formatDate, formatDateTime, getPaymentStatusBadge } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
-import { ReceiptModal } from '@/components/invoices/receipt-modal';
+import { ReceiptModal, generateInvoicePDF, shareInvoiceOnWhatsApp } from '@/components/invoices/receipt-modal';
 import { recordPaymentAction } from '@/app/actions/sales';
 import { processReturnAction } from '@/app/actions/returns';
 
@@ -286,6 +286,30 @@ export function SalesTable({ initialSales, employees, companySettings }: SalesTa
                           title="Print / View Invoice"
                         >
                           <Printer className="w-4 h-4" />
+                        </button>
+
+                        {/* Download PDF */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            generateInvoicePDF(sale, companySettings);
+                          }}
+                          className="p-1.5 rounded-lg text-stone-500 hover:text-stone-900 hover:bg-stone-100"
+                          title="Download PDF Invoice"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+
+                        {/* WhatsApp Share */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            shareInvoiceOnWhatsApp(sale, companySettings);
+                          }}
+                          className="p-1.5 rounded-lg text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                          title="Share on WhatsApp"
+                        >
+                          <Share2 className="w-4 h-4" />
                         </button>
 
                         {/* Record Subsequent Payment */}

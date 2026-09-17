@@ -8,10 +8,20 @@ export async function searchBooksAction(query: string) {
   const user = await getSession();
   if (!user) throw new Error('Unauthorized');
 
+  const baseWhere: any = { status: 'ACTIVE' };
+
+  if (user.role === 'EMPLOYEE') {
+    const allowed = await prisma.employeeBook.findMany({
+      where: { userId: user.id },
+      select: { bookId: true },
+    });
+    baseWhere.id = { in: allowed.map((a) => a.bookId) };
+  }
+
   const cleanQuery = query.trim();
   if (!cleanQuery) {
     return prisma.book.findMany({
-      where: { status: 'ACTIVE' },
+      where: baseWhere,
       take: 20,
       include: { category: true },
       orderBy: { title: 'asc' },
@@ -20,7 +30,7 @@ export async function searchBooksAction(query: string) {
 
   return prisma.book.findMany({
     where: {
-      status: 'ACTIVE',
+      ...baseWhere,
       OR: [
         { title: { contains: cleanQuery } },
         { isbn: { contains: cleanQuery } },
@@ -114,6 +124,30 @@ export async function completeSaleAction(data: {
 
   if (!data.cartItems || data.cartItems.length === 0) {
     return { success: false, error: 'Cart is empty. Please add items to complete sale.' };
+  }
+
+  // Validate price & quantity for every item
+  for (const item of data.cartItems) {
+    if (item.unitPrice === undefined || item.unitPrice === null || isNaN(item.unitPrice) || item.unitPrice <= 0) {
+      return { success: false, error: `Please enter the book price for "${item.title}".` };
+    }
+    if (!item.quantity || isNaN(item.quantity) || item.quantity <= 0 || !Number.isInteger(item.quantity)) {
+      return { success: false, error: `Please enter the quantity for "${item.title}".` };
+    }
+  }
+
+  // Backend Employee Book Access Control
+  if (user.role === 'EMPLOYEE') {
+    const allowed = await prisma.employeeBook.findMany({
+      where: { userId: user.id },
+      select: { bookId: true },
+    });
+    const allowedSet = new Set(allowed.map((a) => a.bookId));
+    for (const item of data.cartItems) {
+      if (!allowedSet.has(item.bookId)) {
+        return { success: false, error: `Unauthorized: You do not have permission to sell "${item.title}".` };
+      }
+    }
   }
 
   const itemSubtotal = data.cartItems.reduce(
