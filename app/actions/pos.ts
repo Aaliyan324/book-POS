@@ -95,6 +95,7 @@ export interface POSCartItem {
   title: string;
   isbn?: string;
   unitPrice: number;
+  originalPrice?: number;
   quantity: number;
   discount: number;
 }

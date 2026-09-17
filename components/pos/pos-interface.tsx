@@ -144,7 +144,7 @@ export function POSInterface({ initialCategories, companySettings }: POSInterfac
           bookId: book.id,
           title: book.title,
           isbn: book.isbn || undefined,
-          unitPrice: book.sellingPrice - (book.discount || 0),
+          unitPrice: 0,
           quantity: 1,
           discount: 0,
         },
@@ -522,19 +522,8 @@ export function POSInterface({ initialCategories, companySettings }: POSInterfac
                       )}
                     </div>
 
-                    {/* Bottom Row: Price & Quantity Controls */}
-                    <div className="mt-3 pt-2.5 border-t border-stone-100 flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="text-xs sm:text-sm font-extrabold text-orange-600">
-                          {formatPKR(book.sellingPrice - (book.discount || 0))}
-                        </div>
-                        {book.discount > 0 && (
-                          <div className="text-[10px] text-stone-400 line-through">
-                            {formatPKR(book.sellingPrice)}
-                          </div>
-                        )}
-                      </div>
-
+                    {/* Bottom Row: Quantity Controls only (price hidden — entered manually in cart) */}
+                    <div className="mt-3 pt-2.5 border-t border-stone-100 flex items-center justify-end gap-2">
                       {/* Quantity Controller directly on book card */}
                       {inCartItem ? (
                         <div
