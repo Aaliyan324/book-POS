@@ -1,13 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Search, Filter, Printer, CreditCard, RotateCcw, Eye, Calendar, Download, Share2 } from 'lucide-react';
-import { formatPKR, formatDate, formatDateTime, getPaymentStatusBadge } from '@/lib/utils';
+import { Search, Printer, Download, Share2 } from 'lucide-react';
+import { formatPKR, formatDateTime } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { Modal } from '@/components/ui/modal';
 import { ReceiptModal, generateInvoicePDF, shareInvoiceOnWhatsApp } from '@/components/invoices/receipt-modal';
-import { recordPaymentAction } from '@/app/actions/sales';
-import { processReturnAction } from '@/app/actions/returns';
 
 interface SalesTableProps {
   initialSales: any[];
@@ -16,27 +13,13 @@ interface SalesTableProps {
 }
 
 export function SalesTable({ initialSales, employees, companySettings }: SalesTableProps) {
-  const [sales, setSales] = useState(initialSales);
+  const [sales] = useState(initialSales);
   const [search, setSearch] = useState('');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('ALL');
 
   // Selected sale for detail modal
   const [selectedSale, setSelectedSale] = useState<any | null>(null);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
-
-  // Subsequent Payment Modal State
-  const [paymentModalSale, setPaymentModalSale] = useState<any | null>(null);
-  const [payAmount, setPayAmount] = useState('');
-  const [payMethod, setPayMethod] = useState<'CASH' | 'BANK_TRANSFER' | 'JAZZCASH' | 'EASYPAISA' | 'CARD' | 'OTHER'>('CASH');
-  const [payNotes, setPayNotes] = useState('');
-  const [isPaySubmitting, setIsPaySubmitting] = useState(false);
-
-  // Return Modal State
-  const [returnModalSale, setReturnModalSale] = useState<any | null>(null);
-  const [returnItems, setReturnItems] = useState<Record<string, number>>({});
-  const [refundType, setRefundType] = useState<'REFUND_CASH' | 'STORE_CREDIT' | 'OUTSTANDING_ADJUSTMENT'>('REFUND_CASH');
-  const [returnReason, setReturnReason] = useState('');
-  const [isReturnSubmitting, setIsReturnSubmitting] = useState(false);
 
   // Filter sales
   const filteredSales = sales.filter((s) => {
@@ -51,109 +34,6 @@ export function SalesTable({ initialSales, employees, companySettings }: SalesTa
     return matchesSearch && matchesStatus;
   });
 
-  // Handle Record Payment
-  const handleRecordPayment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!paymentModalSale) return;
-
-    const amount = parseFloat(payAmount);
-    if (isNaN(amount) || amount <= 0) {
-      alert('Please enter a valid payment amount.');
-      return;
-    }
-
-    setIsPaySubmitting(true);
-    try {
-      const res = await recordPaymentAction({
-        saleId: paymentModalSale.id,
-        amount,
-        method: payMethod,
-        notes: payNotes,
-      });
-
-      if (!res.success) {
-        alert(res.error || 'Failed to record payment');
-        return;
-      }
-
-      // Update local state
-      setSales((prev) =>
-        prev.map((s) => {
-          if (s.id === paymentModalSale.id) {
-            const newPaid = s.paidAmount + amount;
-            const newRem = Math.max(0, s.grandTotal - newPaid);
-            return {
-              ...s,
-              paidAmount: newPaid,
-              remainingAmount: newRem,
-              paymentStatus: newRem === 0 ? 'PAID' : 'PARTIALLY_PAID',
-            };
-          }
-          return s;
-        })
-      );
-
-      setPaymentModalSale(null);
-      setPayAmount('');
-      setPayNotes('');
-      alert('Payment recorded successfully!');
-    } catch (err: any) {
-      alert(err.message || 'Error recording payment');
-    } finally {
-      setIsPaySubmitting(false);
-    }
-  };
-
-  // Handle Process Return
-  const handleProcessReturn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!returnModalSale) return;
-
-    const itemsToReturn = Object.entries(returnItems)
-      .filter(([_, qty]) => qty > 0)
-      .map(([bookId, qty]) => {
-        const item = returnModalSale.items.find((i: any) => i.bookId === bookId);
-        return {
-          bookId,
-          quantity: qty,
-          unitPrice: item ? item.unitPrice : 0,
-        };
-      });
-
-    if (itemsToReturn.length === 0) {
-      alert('Please select at least one item to return.');
-      return;
-    }
-
-    setIsReturnSubmitting(true);
-    try {
-      const res = await processReturnAction({
-        saleId: returnModalSale.id,
-        items: itemsToReturn,
-        refundType,
-        reason: returnReason,
-      });
-
-      if (!res.success) {
-        alert(res.error || 'Failed to process return');
-        return;
-      }
-
-      setSales((prev) =>
-        prev.map((s) => (s.id === returnModalSale.id ? { ...s, status: 'RETURNED' } : s))
-      );
-
-      setReturnModalSale(null);
-      setReturnItems({});
-      setReturnReason('');
-      alert(`Return ${res.returnNumber} processed and inventory restocked!`);
-    } catch (err: any) {
-      alert(err.message || 'Error processing return');
-    } finally {
-      setIsReturnSubmitting(false);
-    }
-  };
-
   return (
     <div className="space-y-6">
       {/* Header Controls */}
@@ -161,7 +41,7 @@ export function SalesTable({ initialSales, employees, companySettings }: SalesTa
         <div>
           <h2 className="text-xl font-bold text-stone-900 tracking-tight">Sales Records</h2>
           <p className="text-xs text-stone-500">
-            View completed transactions, record credit payments, print invoices, and process returns.
+            View completed sales transactions, print invoices, download PDFs, and share details via WhatsApp.
           </p>
         </div>
 
@@ -311,38 +191,6 @@ export function SalesTable({ initialSales, employees, companySettings }: SalesTa
                         >
                           <Share2 className="w-4 h-4" />
                         </button>
-
-                        {/* Record Subsequent Payment */}
-                        {sale.remainingAmount > 0 && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setPaymentModalSale(sale);
-                              setPayAmount(sale.remainingAmount.toString());
-                            }}
-                            className="p-1.5 rounded-lg text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                            title="Record Payment"
-                          >
-                            <CreditCard className="w-4 h-4" />
-                          </button>
-                        )}
-
-                        {/* Return Items */}
-                        {sale.status !== 'RETURNED' && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setReturnModalSale(sale);
-                              const initQty: Record<string, number> = {};
-                              sale.items?.forEach((i: any) => (initQty[i.bookId] = 0));
-                              setReturnItems(initQty);
-                            }}
-                            className="p-1.5 rounded-lg text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                            title="Process Return"
-                          >
-                            <RotateCcw className="w-4 h-4" />
-                          </button>
-                        )}
                       </div>
                     </td>
                   </tr>
@@ -352,208 +200,6 @@ export function SalesTable({ initialSales, employees, companySettings }: SalesTa
           </table>
         </div>
       </div>
-
-      {/* Record Payment Modal */}
-      <Modal
-        isOpen={!!paymentModalSale}
-        onClose={() => setPaymentModalSale(null)}
-        title="Record Subsequent Payment"
-        description={`Invoice #${paymentModalSale?.invoiceNumber}`}
-        maxWidth="md"
-      >
-        {paymentModalSale && (
-          <form onSubmit={handleRecordPayment} className="space-y-4 text-xs">
-            <div className="p-3 rounded-xl bg-stone-50 border border-stone-200 space-y-1">
-              <div className="flex justify-between text-stone-600">
-                <span>Customer:</span>
-                <span className="font-bold text-stone-900">
-                  {paymentModalSale.customer?.name || 'Walk-in Customer'}
-                </span>
-              </div>
-              <div className="flex justify-between text-stone-600">
-                <span>Invoice Date:</span>
-                <span className="font-semibold">{formatDateTime(paymentModalSale.createdAt)}</span>
-              </div>
-              <div className="flex justify-between text-stone-600">
-                <span>Invoice Total:</span>
-                <span className="font-semibold">{formatPKR(paymentModalSale.grandTotal)}</span>
-              </div>
-              <div className="flex justify-between text-stone-600">
-                <span>Already Paid:</span>
-                <span className="font-semibold text-emerald-700">
-                  {formatPKR(paymentModalSale.paidAmount)}
-                </span>
-              </div>
-              <div className="flex justify-between text-rose-600 font-bold border-t border-stone-200 pt-1">
-                <span>Remaining Due:</span>
-                <span>{formatPKR(paymentModalSale.remainingAmount)}</span>
-              </div>
-
-              {/* Previous Payment Dates */}
-              {paymentModalSale.payments && paymentModalSale.payments.length > 0 && (
-                <div className="pt-2 mt-1 border-t border-stone-200 space-y-1">
-                  <p className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">
-                    Previous Payment History:
-                  </p>
-                  {paymentModalSale.payments.map((p: any, idx: number) => (
-                    <div key={p.id || idx} className="flex items-center justify-between text-[11px]">
-                      <div className="flex items-center gap-1.5">
-                        <span className="bg-emerald-100 text-emerald-700 font-bold text-[9px] px-1.5 py-0.5 rounded">
-                          {p.method}
-                        </span>
-                        <span className="text-stone-500 font-mono">{formatDateTime(p.createdAt)}</span>
-                      </div>
-                      <span className="font-bold text-emerald-700">+ {formatPKR(p.amount)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label className="block font-semibold text-stone-700 mb-1">Payment Amount (PKR) *</label>
-              <input
-                type="number"
-                required
-                min="1"
-                max={paymentModalSale.remainingAmount}
-                value={payAmount}
-                onChange={(e) => setPayAmount(e.target.value)}
-                className="w-full p-2.5 rounded-xl bg-stone-50 border border-stone-200 text-sm font-bold"
-              />
-            </div>
-
-            <div>
-              <label className="block font-semibold text-stone-700 mb-1">Payment Method</label>
-              <select
-                value={payMethod}
-                onChange={(e) => setPayMethod(e.target.value as any)}
-                className="w-full p-2.5 rounded-xl bg-stone-50 border border-stone-200"
-              >
-                <option value="CASH">Cash</option>
-                <option value="BANK_TRANSFER">Bank Transfer</option>
-                <option value="JAZZCASH">JazzCash</option>
-                <option value="EASYPAISA">Easypaisa</option>
-                <option value="CARD">Card</option>
-                <option value="OTHER">Other</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block font-semibold text-stone-700 mb-1">Notes / Transaction Reference</label>
-              <input
-                type="text"
-                value={payNotes}
-                onChange={(e) => setPayNotes(e.target.value)}
-                placeholder="Optional notes or bank transaction ID..."
-                className="w-full p-2.5 rounded-xl bg-stone-50 border border-stone-200"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setPaymentModalSale(null)}
-                className="px-4 py-2 rounded-xl border border-stone-200 font-semibold"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isPaySubmitting}
-                className="px-4 py-2 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700"
-              >
-                {isPaySubmitting ? 'Saving...' : 'Save Payment Entry'}
-              </button>
-            </div>
-          </form>
-        )}
-      </Modal>
-
-      {/* Return Items Modal */}
-      <Modal
-        isOpen={!!returnModalSale}
-        onClose={() => setReturnModalSale(null)}
-        title="Process Return & Restock"
-        description={`Invoice #${returnModalSale?.invoiceNumber}`}
-        maxWidth="lg"
-      >
-        {returnModalSale && (
-          <form onSubmit={handleProcessReturn} className="space-y-4 text-xs">
-            <p className="text-stone-500">
-              Select items and quantities being returned. Valid returned books will be automatically restored to inventory.
-            </p>
-
-            <div className="space-y-2 max-h-[220px] overflow-y-auto border border-stone-200 rounded-xl p-3">
-              {returnModalSale.items?.map((item: any) => (
-                <div key={item.bookId} className="flex items-center justify-between gap-3 py-1">
-                  <div>
-                    <p className="font-semibold text-stone-900">{item.book?.title}</p>
-                    <p className="text-[10px] text-stone-400">Purchased Qty: {item.quantity}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-stone-500">Return Qty:</span>
-                    <input
-                      type="number"
-                      min="0"
-                      max={item.quantity}
-                      value={returnItems[item.bookId] || 0}
-                      onChange={(e) =>
-                        setReturnItems({
-                          ...returnItems,
-                          [item.bookId]: parseInt(e.target.value) || 0,
-                        })
-                      }
-                      className="w-16 p-1.5 rounded-lg bg-stone-50 border border-stone-200 text-center font-bold"
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div>
-              <label className="block font-semibold text-stone-700 mb-1">Refund / Credit Adjustment Type</label>
-              <select
-                value={refundType}
-                onChange={(e) => setRefundType(e.target.value as any)}
-                className="w-full p-2.5 rounded-xl bg-stone-50 border border-stone-200"
-              >
-                <option value="REFUND_CASH">Refund Cash to Customer</option>
-                <option value="STORE_CREDIT">Issue Store Credit</option>
-                <option value="OUTSTANDING_ADJUSTMENT">Adjust Against Outstanding Balance</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block font-semibold text-stone-700 mb-1">Return Reason</label>
-              <input
-                type="text"
-                value={returnReason}
-                onChange={(e) => setReturnReason(e.target.value)}
-                placeholder="Reason for return (e.g. Damaged copy, wrong edition)..."
-                className="w-full p-2.5 rounded-xl bg-stone-50 border border-stone-200"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setReturnModalSale(null)}
-                className="px-4 py-2 rounded-xl border border-stone-200 font-semibold"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isReturnSubmitting}
-                className="px-4 py-2 rounded-xl bg-amber-600 text-white font-semibold hover:bg-amber-700"
-              >
-                {isReturnSubmitting ? 'Processing...' : 'Confirm Return & Restock'}
-              </button>
-            </div>
-          </form>
-        )}
-      </Modal>
 
       {/* Printable Receipt Modal */}
       <ReceiptModal
