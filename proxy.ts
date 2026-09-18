@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const PUBLIC_ROUTES = ['/login', '/api/auth/login'];
+const PUBLIC_ROUTES = ['/login', '/api'];
 
 export function proxy(request: NextRequest) {
   const token = request.cookies.get('pos_session')?.value;
@@ -12,13 +12,10 @@ export function proxy(request: NextRequest) {
   // If trying to access protected route without token
   if (!token && !isPublicRoute) {
     const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('from', pathname);
+    if (pathname !== '/') {
+      loginUrl.searchParams.set('from', pathname);
+    }
     return NextResponse.redirect(loginUrl);
-  }
-
-  // If logged in and trying to access /login
-  if (token && pathname === '/login') {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
   return NextResponse.next();
@@ -26,6 +23,6 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2)$).*)',
   ],
 };
