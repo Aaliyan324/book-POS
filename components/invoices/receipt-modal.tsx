@@ -257,6 +257,12 @@ export function ReceiptModal({
               <p className="font-bold text-stone-900 mt-0.5">
                 {sale.customer?.name || 'Walk-in Customer'}
               </p>
+              <p className="text-[10px] text-stone-500">
+                Total Purchases: <strong className="text-stone-800">{formatPKR(sale.customer?.totalPurchases ?? sale.grandTotal)}</strong>
+              </p>
+              <p className="text-[10px] text-stone-500">
+                Remaining: <strong className={(sale.customer?.outstandingBalance || 0) > 0 || sale.remainingAmount > 0 ? 'text-rose-600 font-bold' : 'text-stone-700'}>{formatPKR(sale.customer?.outstandingBalance ?? sale.remainingAmount)}</strong>
+              </p>
               {sale.customer?.phone && (
                 <p className="text-stone-600">Phone: {sale.customer.phone}</p>
               )}

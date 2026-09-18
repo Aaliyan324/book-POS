@@ -34,6 +34,11 @@ export function SalesTable({ initialSales, employees, companySettings }: SalesTa
     return matchesSearch && matchesStatus;
   });
 
+  // Calculate totals for filtered sales records
+  const totalPurchasesAmount = filteredSales.reduce((acc, s) => acc + (s.grandTotal || 0), 0);
+  const totalPaidAmount = filteredSales.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
+  const totalRemainingAmount = filteredSales.reduce((acc, s) => acc + (s.remainingAmount || 0), 0);
+
   return (
     <div className="space-y-6">
       {/* Header Controls */}
@@ -68,6 +73,39 @@ export function SalesTable({ initialSales, employees, companySettings }: SalesTa
             <option value="PARTIALLY_PAID">Partially Paid</option>
             <option value="UNPAID">Unpaid Only</option>
           </select>
+        </div>
+      </div>
+
+      {/* Top Summary Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white p-4.5 rounded-2xl border border-stone-200/80 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-stone-500 uppercase tracking-wider">Total Purchases Amount</p>
+            <h3 className="text-lg sm:text-xl font-extrabold text-stone-900 mt-1">{formatPKR(totalPurchasesAmount)}</h3>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center font-black text-sm shrink-0">
+            Rs
+          </div>
+        </div>
+
+        <div className="bg-white p-4.5 rounded-2xl border border-stone-200/80 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-stone-500 uppercase tracking-wider">Total Paid Amount</p>
+            <h3 className="text-lg sm:text-xl font-extrabold text-emerald-700 mt-1">{formatPKR(totalPaidAmount)}</h3>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-sm shrink-0">
+            ✓
+          </div>
+        </div>
+
+        <div className="bg-white p-4.5 rounded-2xl border border-stone-200/80 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-stone-500 uppercase tracking-wider">Total Remaining Amount</p>
+            <h3 className="text-lg sm:text-xl font-extrabold text-rose-600 mt-1">{formatPKR(totalRemainingAmount)}</h3>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold text-sm shrink-0">
+            !
+          </div>
         </div>
       </div>
 
@@ -120,8 +158,20 @@ export function SalesTable({ initialSales, employees, companySettings }: SalesTa
                     <td className="py-3.5 px-4 text-stone-500">
                       {formatDateTime(sale.createdAt)}
                     </td>
-                    <td className="py-3.5 px-4 font-medium text-stone-900">
-                      {sale.customer?.name || 'Walk-in Customer'}
+                    <td className="py-3.5 px-4">
+                      <div className="font-bold text-stone-900">
+                        {sale.customer?.name || 'Walk-in Customer'}
+                      </div>
+                      <div className="flex flex-col text-[10px] text-stone-500 mt-0.5 space-y-0.5">
+                        <span>
+                          Total Purchases: <strong className="text-stone-700 font-semibold">{formatPKR(sale.customer?.totalPurchases ?? sale.grandTotal)}</strong>
+                        </span>
+                        <span>
+                          Remaining: <strong className={(sale.customer?.outstandingBalance || 0) > 0 || sale.remainingAmount > 0 ? 'text-rose-600 font-bold' : 'text-stone-600 font-semibold'}>
+                            {formatPKR(sale.customer?.outstandingBalance ?? sale.remainingAmount)}
+                          </strong>
+                        </span>
+                      </div>
                     </td>
                     <td className="py-3.5 px-4 text-stone-600">{sale.user?.name}</td>
                     <td className="py-3.5 px-4 text-right font-bold text-stone-900">

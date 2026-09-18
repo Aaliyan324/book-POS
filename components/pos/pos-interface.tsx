@@ -177,8 +177,21 @@ export function POSInterface({ initialCategories, companySettings }: POSInterfac
     if (invalidField?.bookId === bookId && invalidField?.field === 'quantity') {
       setInvalidField(null);
     }
+
+    const book = books.find((b) => b.id === bookId);
+    const maxStock = book ? book.stockQuantity : 999;
+    let finalVal = val;
+
+    if (val.trim() !== '') {
+      const parsed = parseInt(val, 10);
+      if (!isNaN(parsed) && parsed > maxStock) {
+        showToast(`You have reached the maximum available stock (${maxStock})`, 'warning');
+        finalVal = maxStock.toString();
+      }
+    }
+
     setCart((prev) =>
-      prev.map((item) => (item.bookId === bookId ? { ...item, quantityInput: val } : item))
+      prev.map((item) => (item.bookId === bookId ? { ...item, quantityInput: finalVal } : item))
     );
   };
 
@@ -199,7 +212,7 @@ export function POSInterface({ initialCategories, companySettings }: POSInterfac
             const newQty = currentQty + delta;
 
             if (newQty > maxStock) {
-              showToast(`Cannot exceed max available stock (${maxStock})`, 'warning');
+              showToast(`You have reached the maximum available stock (${maxStock})`, 'warning');
               return item;
             }
             if (newQty <= 0 && currentQty > 0) {
@@ -275,6 +288,15 @@ export function POSInterface({ initialCategories, companySettings }: POSInterfac
       const q = parseInt(item.quantityInput, 10);
       if (!item.quantityInput.trim() || isNaN(q) || q <= 0 || !Number.isInteger(Number(item.quantityInput))) {
         setErrorMessage(`Please enter the quantity for "${item.title}".`);
+        setInvalidField({ bookId: item.bookId, field: 'quantity' });
+        return;
+      }
+
+      const book = books.find((b) => b.id === item.bookId);
+      const maxStock = book ? book.stockQuantity : 999;
+      if (q > maxStock) {
+        showToast(`You have reached the maximum available stock (${maxStock}) for "${item.title}"`, 'warning');
+        setErrorMessage(`Quantity for "${item.title}" exceeds available stock (${maxStock}).`);
         setInvalidField({ bookId: item.bookId, field: 'quantity' });
         return;
       }
@@ -913,6 +935,8 @@ function CartContent({
   remaining,
   changeDue,
 }: CartContentProps) {
+  const currentPaidAmount = parseFloat(paidAmount) || 0;
+
   return (
     <div className="flex flex-col h-full bg-white text-stone-900 overflow-y-auto">
       {/* Desktop Cart Header */}
@@ -1247,7 +1271,7 @@ function CartContent({
           ) : (
             <>
               <CheckCircle2 className="w-5 h-5" />
-              <span>Complete Sale ({formatPKR(grandTotal)})</span>
+              <span>Complete Sale (Paying: {formatPKR(currentPaidAmount)})</span>
             </>
           )}
         </button>
