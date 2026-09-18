@@ -128,28 +128,37 @@ export function generateInvoicePDF(sale: any, companyInfo: Record<string, string
     currentY += 6;
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(220, 38, 38);
-    doc.text(`Remaining Balance:`, 130, currentY);
+    doc.text(`Remaining Balance Due:`, 130, currentY);
     doc.text(formatPKR(sale.remainingAmount), 196, currentY, { align: 'right' });
-  }
-
-  // Account Ledger Summary in PDF
-  currentY += 8;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(80, 80, 80);
-  doc.text(`Total Purchases (Account):`, 130, currentY);
-  doc.text(formatPKR(sale.customer?.totalPurchases ?? sale.grandTotal), 196, currentY, { align: 'right' });
-
-  currentY += 5;
-  doc.setFont('helvetica', 'bold');
-  const remBal = sale.customer?.outstandingBalance ?? sale.remainingAmount;
-  if (remBal > 0) {
-    doc.setTextColor(220, 38, 38);
   } else {
-    doc.setTextColor(16, 185, 129);
+    currentY += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Remaining Balance Due:`, 130, currentY);
+    doc.text(formatPKR(0), 196, currentY, { align: 'right' });
   }
-  doc.text(`Total Remaining Balance:`, 130, currentY);
-  doc.text(formatPKR(remBal), 196, currentY, { align: 'right' });
+
+  if (sale.customer) {
+    const previousBalance = Math.max(
+      0,
+      sale.payments?.[0]?.previousBalance ??
+        ((sale.customer?.outstandingBalance ?? 0) - (sale.remainingAmount ?? 0))
+    );
+    const subtotalRemainingDue = (sale.remainingAmount ?? 0) + previousBalance;
+
+    currentY += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Previous Remaining Balance Due:`, 130, currentY);
+    doc.text(formatPKR(previousBalance), 196, currentY, { align: 'right' });
+
+    currentY += 5;
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(220, 38, 38);
+    doc.text(`Subtotal Remaining Due:`, 130, currentY);
+    doc.text(formatPKR(subtotalRemainingDue), 196, currentY, { align: 'right' });
+  }
 
   currentY += 12;
   doc.setFontSize(8);
@@ -175,6 +184,15 @@ export function shareInvoiceOnWhatsApp(sale: any, companyInfo: Record<string, st
     ?.map((i: any) => `• ${i.book?.title || i.bookTitle || 'Book'} (Qty: ${i.quantity}) - ${formatPKR(i.subtotal)}`)
     .join('\n');
 
+  const previousBalance = sale.customer
+    ? Math.max(
+        0,
+        sale.payments?.[0]?.previousBalance ??
+          ((sale.customer?.outstandingBalance ?? 0) - (sale.remainingAmount ?? 0))
+      )
+    : 0;
+  const subtotalRemainingDue = (sale.remainingAmount ?? 0) + previousBalance;
+
   const text = `📚 *${companyName.toUpperCase()} - OFFICIAL INVOICE* 📚
 -------------------------------------------
 *Invoice #:* ${sale.invoiceNumber}
@@ -188,11 +206,8 @@ ${itemsList || 'N/A'}
 *Grand Total:* ${formatPKR(sale.grandTotal)}
 *Amount Paid:* ${formatPKR(sale.paidAmount)}
 *Payment Status:* ${sale.paymentStatus}
-${sale.remainingAmount > 0 ? `*Invoice Remaining:* ${formatPKR(sale.remainingAmount)}` : ''}
-
-*Account Ledger Summary:*
-*Total Purchases:* ${formatPKR(sale.customer?.totalPurchases ?? sale.grandTotal)}
-*Total Remaining Balance:* ${formatPKR(sale.customer?.outstandingBalance ?? sale.remainingAmount)}
+*Remaining Balance Due:* ${formatPKR(sale.remainingAmount)}
+${sale.customer ? `*Previous Remaining Balance Due:* ${formatPKR(previousBalance)}\n*Subtotal Remaining Due:* ${formatPKR(subtotalRemainingDue)}` : ''}
 -------------------------------------------
 ${companyInfo.pos_receipt_footer || 'Thank you for your business!'}`;
 
@@ -232,6 +247,15 @@ export function ReceiptModal({
   const companyEmail = companyInfo.company_email || 'info@mudassarpublishers.com';
   const companyAddress = companyInfo.company_address || 'Main Commercial Market, Gulberg III, Lahore';
   const receiptFooter = companyInfo.pos_receipt_footer || 'Thank you for shopping at Mudassar Publishers!';
+
+  const previousBalance = sale.customer
+    ? Math.max(
+        0,
+        sale.payments?.[0]?.previousBalance ??
+          ((sale.customer?.outstandingBalance ?? 0) - (sale.remainingAmount ?? 0))
+      )
+    : 0;
+  const subtotalRemainingDue = (sale.remainingAmount ?? 0) + previousBalance;
 
   return (
     <Modal
@@ -279,12 +303,6 @@ export function ReceiptModal({
               <p className="text-stone-400 uppercase font-semibold">Billed To</p>
               <p className="font-bold text-stone-900 mt-0.5">
                 {sale.customer?.name || 'Walk-in Customer'}
-              </p>
-              <p className="text-[10px] text-stone-500">
-                Total Purchases: <strong className="text-stone-800">{formatPKR(sale.customer?.totalPurchases ?? sale.grandTotal)}</strong>
-              </p>
-              <p className="text-[10px] text-stone-500">
-                Remaining: <strong className={(sale.customer?.outstandingBalance || 0) > 0 || sale.remainingAmount > 0 ? 'text-rose-600 font-bold' : 'text-stone-700'}>{formatPKR(sale.customer?.outstandingBalance ?? sale.remainingAmount)}</strong>
               </p>
               {sale.customer?.phone && (
                 <p className="text-stone-600">Phone: {sale.customer.phone}</p>
@@ -360,12 +378,28 @@ export function ReceiptModal({
                 <span>{formatPKR(sale.remainingAmount)}</span>
               </div>
             ) : (
-              sale.paidAmount > sale.grandTotal && (
-                <div className="flex justify-between font-bold text-blue-600">
-                  <span>Change Given:</span>
-                  <span>{formatPKR(sale.paidAmount - sale.grandTotal)}</span>
+              <div className="flex justify-between font-semibold text-stone-600">
+                <span>Remaining Balance Due:</span>
+                <span>{formatPKR(0)}</span>
+              </div>
+            )}
+            {sale.paidAmount > sale.grandTotal && (
+              <div className="flex justify-between font-bold text-blue-600">
+                <span>Change Given:</span>
+                <span>{formatPKR(sale.paidAmount - sale.grandTotal)}</span>
+              </div>
+            )}
+            {sale.customer && (
+              <>
+                <div className="flex justify-between text-stone-600">
+                  <span>Previous Remaining Balance Due:</span>
+                  <span className="font-semibold">{formatPKR(previousBalance)}</span>
                 </div>
-              )
+                <div className="flex justify-between font-bold text-rose-700 border-t border-stone-200/80 pt-1">
+                  <span>Subtotal Remaining Due:</span>
+                  <span>{formatPKR(subtotalRemainingDue)}</span>
+                </div>
+              </>
             )}
             <div className="flex justify-between text-[10px] text-stone-500 pt-1">
               <span>Payment Status:</span>
@@ -402,34 +436,6 @@ export function ReceiptModal({
                 </div>
               </div>
             )}
-
-            {/* Overall Customer Account Summary Card */}
-            <div className="mt-3 pt-3 border-t-2 border-dashed border-stone-200 bg-stone-50 p-3 rounded-xl space-y-2 text-[11px]">
-              <div className="flex items-center justify-between text-stone-700 font-bold uppercase tracking-wider text-[10px]">
-                <span>Customer Ledger Account Summary</span>
-                <span className="text-orange-600 font-semibold">{sale.customer?.name || 'Walk-in Customer'}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="bg-white p-2.5 rounded-lg border border-stone-200/80 shadow-2xs">
-                  <p className="text-[10px] text-stone-500 font-medium">Total Purchases</p>
-                  <p className="text-xs font-bold text-stone-900 mt-0.5">
-                    {formatPKR(sale.customer?.totalPurchases ?? sale.grandTotal)}
-                  </p>
-                </div>
-                <div className="bg-white p-2.5 rounded-lg border border-stone-200/80 shadow-2xs">
-                  <p className="text-[10px] text-stone-500 font-medium font-sans">Total Remaining Balance</p>
-                  <p
-                    className={`text-xs font-bold mt-0.5 ${
-                      (sale.customer?.outstandingBalance ?? sale.remainingAmount) > 0
-                        ? 'text-rose-600'
-                        : 'text-emerald-600'
-                    }`}
-                  >
-                    {formatPKR(sale.customer?.outstandingBalance ?? sale.remainingAmount)}
-                  </p>
-                </div>
-              </div>
-            </div>
           </div>
 
           {/* Receipt Footer */}

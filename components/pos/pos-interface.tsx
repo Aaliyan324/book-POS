@@ -1271,7 +1271,7 @@ function CartContent({
           ) : (
             <>
               <CheckCircle2 className="w-5 h-5" />
-              <span>Complete Sale (Paying: {formatPKR(currentPaidAmount)})</span>
+              <span>Complete Sale (Total Sale: {formatPKR(grandTotal)})</span>
             </>
           )}
         </button>
